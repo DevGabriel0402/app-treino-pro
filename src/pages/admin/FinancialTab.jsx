@@ -116,6 +116,7 @@ const StatusBadge = styled.span`
 
 const FinancialTab = ({
   payments,
+  students,
   setShowAddPayment,
   togglePaymentStatus,
   deletePayment,
@@ -203,7 +204,10 @@ const FinancialTab = ({
                                 const text = encodeURIComponent(
                                   `Olá! Segue o link para o pagamento da sua mensalidade no valor de R$ ${Number(p.amount).toFixed(2)}: ${p.paymentUrl}`
                                 );
-                                window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+                                const student = students?.find(s => s.id === p.studentId);
+                                const cleanedPhone = student?.phone ? student.phone.replace(/\D/g, '') : '';
+                                const targetPhone = (cleanedPhone.length === 10 || cleanedPhone.length === 11) ? '55' + cleanedPhone : cleanedPhone;
+                                window.open(`https://api.whatsapp.com/send?phone=${targetPhone}&text=${text}`, '_blank');
                               }}
                             >
                               Enviar Whats

@@ -908,6 +908,7 @@ const AdminPanel = () => {
           element={
             <FinancialTab 
               payments={payments}
+              students={students}
               setShowAddPayment={setShowAddPayment}
               togglePaymentStatus={togglePaymentStatus}
               deletePayment={deletePayment}
