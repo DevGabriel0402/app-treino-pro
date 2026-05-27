@@ -16,7 +16,7 @@ service cloud.firestore {
 
     // --- Users Collection ---
     // Anyone can read a user profile (for auth check), but only admins can list all users or create them.
-    // In Atlas Pro, the AdminPanel needs to list all users to show the student list.
+    // In Treino Pro, the AdminPanel needs to list all users to show the student list.
     match /users/{userId} {
       allow read: if true; 
       allow write: if isAuthenticated(); // Allow self-update or admin update. Further restriction: isAdmin() || request.auth.uid == userId

@@ -2,13 +2,13 @@ import { createGlobalStyle } from 'styled-components';
 
 const GlobalStyles = createGlobalStyle`
   :root {
-    --bg-main: #fcfcfd;
+    --bg-main: #f1f5f9;
     --bg-card: #ffffff;
-    --text-main: #1a1a1a;
-    --text-muted: #64748b;
-    --border: #f1f5f9;
+    --text-main: #0f172a;
+    --text-muted: #334155;
+    --border: #e2e8f0;
     --accent: ${props => props.$accentColor || '#000000'};
-    --accent-shadow: rgba(0, 0, 0, 0.02);
+    --accent-shadow: rgba(0, 0, 0, 0.05);
   }
 
   * {

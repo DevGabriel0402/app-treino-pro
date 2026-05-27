@@ -755,12 +755,29 @@ const AdminPanel = () => {
   };
 
   const handleAddExerciseToTraining = (ex) => {
+    const isMobility = ex.category?.toLowerCase().trim() === 'mobilidade e alongamento';
+    
+    // Find similar exercises from the same category as suggestions for substitutes
+    const similar = exercises
+      .filter(item => 
+        item.category?.toLowerCase().trim() === ex.category?.toLowerCase().trim() && 
+        item.id !== ex.id
+      )
+      .slice(0, 3)
+      .map(item => ({
+        id: item.id || '',
+        title: item.title || '',
+        category: item.category || '',
+        gifUrl: item.gifUrl || ''
+      }));
+
     setTrainingExercises([...trainingExercises, { 
       ...ex, 
-      series: '3', 
-      reps: '12', 
-      rest: '60', 
-      isDuration: false 
+      series: isMobility ? '' : '3', 
+      reps: isMobility ? '' : '12', 
+      rest: isMobility ? '' : '60', 
+      isDuration: false,
+      substitutes: similar
     }]);
   };
 

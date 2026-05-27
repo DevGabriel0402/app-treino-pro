@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
 const MusclePage = ({ muscle }) => (
   <Page size="A4" style={styles.page}>
     <View style={styles.header}>
-      <Text style={styles.title}>Atlas Anatomia Pro</Text>
+      <Text style={styles.title}>Treino Pro</Text>
       <Text style={styles.subtitle}>FICHA TÉCNICA: {muscle.name.toUpperCase()}</Text>
     </View>
 
@@ -116,7 +116,7 @@ const MusclePage = ({ muscle }) => (
     </View>
 
     <Text style={styles.footer} render={({ pageNumber, totalPages }) => (
-      `Página ${pageNumber} de ${totalPages} • Gerado por Atlas Anatomia Pro`
+      `Página ${pageNumber} de ${totalPages} • Gerado por Treino Pro`
     )} fixed />
   </Page>
 );

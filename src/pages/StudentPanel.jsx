@@ -240,6 +240,7 @@ const StudentPanel = () => {
   const [showTrainingList, setShowTrainingList] = useState(true);
   const [currentTraining, setCurrentTraining] = useState(null);
   const [exercises, setExercises] = useState([]);
+  const [globalExercises, setGlobalExercises] = useState([]);
   const [loading, setLoading] = useState(true);
   
   const [selectedEx, setSelectedEx] = useState(null);
@@ -292,6 +293,78 @@ const StudentPanel = () => {
     return () => clearInterval(interval);
   }, [restTimer]);
 
+  // Fetch global exercises library to resolve latest Cloudinary URLs
+  useEffect(() => {
+    const unsubGlobalEx = onSnapshot(collection(db, "exercises"), (snapshot) => {
+      setGlobalExercises(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (error) => {
+      console.error("Error fetching global exercises:", error);
+    });
+    return () => unsubGlobalEx();
+  }, []);
+
+  // Resolve training exercises dynamically whenever currentTraining or globalExercises updates
+  useEffect(() => {
+    if (!currentTraining) {
+      setExercises([]);
+      setLoading(false);
+      return;
+    }
+    if (!currentTraining.exercises || currentTraining.exercises.length === 0) {
+      setExercises([]);
+      setLoading(false);
+      return;
+    }
+
+    const resolveAndSet = async () => {
+      setLoading(true);
+      let rawExercises = [];
+      if (typeof currentTraining.exercises[0] === 'object') {
+        rawExercises = currentTraining.exercises;
+      } else {
+        try {
+          const exQ = query(collection(db, "exercises"), where("__name__", "in", currentTraining.exercises));
+          const exSnapshot = await getDocs(exQ);
+          rawExercises = exSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (err) {
+          console.error("Error fetching referenced exercises:", err);
+          rawExercises = [];
+        }
+      }
+
+      const resolved = rawExercises.map(ex => {
+        // Find match in globalExercises by id or case-insensitive title
+        const match = globalExercises.find(g => 
+          g.id === ex.id || 
+          g.title.toLowerCase().trim() === ex.title.toLowerCase().trim()
+        );
+
+        // Resolve substitutes
+        const resolvedSubstitutes = ex.substitutes ? ex.substitutes.map(sub => {
+          const subMatch = globalExercises.find(g => 
+            g.id === sub.id || 
+            g.title.toLowerCase().trim() === sub.title.toLowerCase().trim()
+          );
+          return {
+            ...sub,
+            gifUrl: (subMatch?.gifUrl && subMatch.gifUrl.startsWith('http')) ? subMatch.gifUrl : sub.gifUrl
+          };
+        }) : [];
+
+        return {
+          ...ex,
+          gifUrl: (match?.gifUrl && match.gifUrl.startsWith('http')) ? match.gifUrl : ex.gifUrl,
+          substitutes: resolvedSubstitutes
+        };
+      });
+
+      setExercises(resolved);
+      setLoading(false);
+    };
+
+    resolveAndSet();
+  }, [currentTraining, globalExercises]);
+
   useEffect(() => {
     if (!user?.id) return;
     
@@ -306,23 +379,11 @@ const StudentPanel = () => {
         });
         setAllTrainings(docs);
         if (!currentTraining && docs.length > 0) {
-          const trainingData = docs[0];
-          setCurrentTraining(trainingData);
-          if (trainingData.exercises?.length > 0) {
-            if (typeof trainingData.exercises[0] === 'object') {
-              setExercises(trainingData.exercises);
-            } else {
-              const exQ = query(collection(db, "exercises"), where("__name__", "in", trainingData.exercises));
-              getDocs(exQ).then(exSnapshot => {
-                setExercises(exSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-              });
-            }
-          }
+          setCurrentTraining(docs[0]);
         }
       } else {
         setAllTrainings([]);
         setCurrentTraining(null);
-        setExercises([]);
       }
       setLoading(false);
     }, (error) => {
@@ -364,19 +425,6 @@ const StudentPanel = () => {
 
   const handleSelectTraining = async (t) => {
     setCurrentTraining(t);
-    setLoading(true);
-    if (t.exercises?.length > 0) {
-      if (typeof t.exercises[0] === 'object') {
-        setExercises(t.exercises);
-      } else {
-        const exQ = query(collection(db, "exercises"), where("__name__", "in", t.exercises));
-        const exSnapshot = await getDocs(exQ);
-        setExercises(exSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      }
-    } else {
-      setExercises([]);
-    }
-    setLoading(false);
   };
 
   const getTrainingForDate = (date) => {
@@ -424,9 +472,9 @@ const StudentPanel = () => {
   };
 
   if (userStatus === 'Inativo') {
-    const pixCode = settings?.pixCode || "00020101021126580014br.gov.bcb.pix01369c3a382c-4cfc-43f1-a1e6-42bb53c65c695204000053039865406150.005802BR5913AtlasProSaaS6009BeloHoriz62070503***63041A2D";
+    const pixCode = settings?.pixCode || "00020101021126580014br.gov.bcb.pix01369c3a382c-4cfc-43f1-a1e6-42bb53c65c695204000053039865406150.005802BR5913TreinoProSaaS6009BeloHoriz62070503***63041A2D";
     const contactPhone = settings?.contactPhone || "5531991660594";
-    const systemName = settings?.systemName || "ATLAS PRO";
+    const systemName = settings?.systemName || "TREINO PRO";
     
     const handleCopyPix = () => {
       navigator.clipboard.writeText(pixCode);
@@ -552,7 +600,7 @@ const StudentPanel = () => {
 
             <BlockedButton 
               className="whatsapp" 
-              href={`https://wa.me/${settings?.contactPhone || '5531991660594'}?text=${encodeURIComponent(`Olá! Hoje vence minha mensalidade no ${settings?.systemName || 'ATLAS PRO'} e gostaria de enviar o comprovante.`)}`}
+              href={`https://wa.me/${settings?.contactPhone || '5531991660594'}?text=${encodeURIComponent(`Olá! Hoje vence minha mensalidade no ${settings?.systemName || 'TREINO PRO'} e gostaria de enviar o comprovante.`)}`}
               target="_blank" 
               rel="noopener noreferrer"
             >
@@ -599,6 +647,8 @@ const StudentPanel = () => {
               setProfileAnamnesis={setProfileAnamnesis}
               savingProfile={savingProfile}
               handleSaveProfile={handleSaveProfile}
+              pendingPayment={pendingPayment}
+              userStatus={userStatus}
             />
           } 
         />

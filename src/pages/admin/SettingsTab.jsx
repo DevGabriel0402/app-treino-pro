@@ -95,7 +95,7 @@ const SettingsTab = ({
           <input 
             value={settingsForm.systemName} 
             onChange={e => setSettingsForm({ ...settingsForm, systemName: e.target.value.toUpperCase() })} 
-            placeholder="Ex: ATLAS PRO" 
+            placeholder="Ex: TREINO PRO" 
           />
           <span style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 4 }}>
             Este nome será exibido nos cabeçalhos, barra lateral e telas do portal de alunos e treinador.

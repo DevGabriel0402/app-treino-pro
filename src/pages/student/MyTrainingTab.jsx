@@ -8,9 +8,10 @@ import {
   X, 
   Timer,
   RefreshCw,
-  Dumbbell
+  Dumbbell,
+  TrendingUp
 } from 'lucide-react';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 
 const SectionHeader = styled.div`
   margin-bottom: 3rem;
@@ -137,6 +138,7 @@ const MyTrainingTab = ({
   const [showSubstitutesList, setShowSubstitutesList] = React.useState(false);
   const [imageLoaded, setImageLoaded] = React.useState(false);
   const [imageError, setImageError] = React.useState(false);
+  const [lastLoads, setLastLoads] = React.useState(null);
 
   React.useEffect(() => {
     if (exercises) {
@@ -148,7 +150,38 @@ const MyTrainingTab = ({
     setShowSubstitutesList(false);
     setImageLoaded(false);
     setImageError(false);
-  }, [selectedEx]);
+    setLastLoads(null);
+
+    if (!selectedEx || !user?.id) {
+      return;
+    }
+
+    const fetchLastLoads = async () => {
+      try {
+        const q = query(
+          collection(db, "trainingLogs"),
+          where("userId", "==", user.id),
+          orderBy("completedAt", "desc"),
+          limit(15)
+        );
+        const snapshot = await getDocs(q);
+        for (const doc of snapshot.docs) {
+          const log = doc.data();
+          if (log.exercisesData) {
+            const exData = log.exercisesData.find(e => e.id === selectedEx.id);
+            if (exData && exData.series && exData.series.length > 0) {
+              setLastLoads(exData.series);
+              break;
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching last loads:", err);
+      }
+    };
+
+    fetchLastLoads();
+  }, [selectedEx, user, db]);
   if (showTrainingList) {
     return (
       <>
@@ -212,16 +245,22 @@ const MyTrainingTab = ({
               <div>
                 <h4 style={{ fontWeight: 600, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: 6 }}>
                   {ex.title}
-                  {ex.isDuration ? (
+                  {ex.category?.toLowerCase().trim() === 'mobilidade e alongamento' ? (
+                    (completedSeries[ex.id]?.[0]?.checked || completedSeries[ex.id]?.[0]) && <CheckCircle2 size={16} color="#10b981" />
+                  ) : ex.isDuration ? (
                     completedSeries[ex.id]?.[0] && <CheckCircle2 size={16} color="#10b981" />
                   ) : (
-                    (completedSeries[ex.id]?.filter(Boolean).length || 0) === parseInt(ex.series || 0) && parseInt(ex.series || 0) > 0 && (
+                    (completedSeries[ex.id]?.filter(s => s && (typeof s === 'object' ? s.checked : s)).length || 0) === parseInt(ex.series || 0) && parseInt(ex.series || 0) > 0 && (
                       <CheckCircle2 size={16} color="#10b981" />
                     )
                   )}
                 </h4>
                 <p style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>{ex.category}</p>
-                {ex.isDuration ? (
+                {ex.category?.toLowerCase().trim() === 'mobilidade e alongamento' ? (
+                  <p style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 700, marginTop: 4 }}>
+                    🧘 Alongamento & Mobilidade (Livre)
+                  </p>
+                ) : ex.isDuration ? (
                   <p style={{ fontSize: '0.65rem', color: '#1a1a1a', fontWeight: 700, marginTop: 4 }}>
                     Duração: {ex.rest} min
                   </p>
@@ -382,7 +421,11 @@ const MyTrainingTab = ({
               )}
             </div>
             
-            {selectedEx.isDuration ? (
+            {selectedEx.category?.toLowerCase().trim() === 'mobilidade e alongamento' ? (
+              <div style={{ textAlign: 'center', padding: '14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, color: '#166534', fontSize: '0.85rem', fontWeight: 600, marginBottom: 20 }}>
+                🧘 Exercício de Mobilidade / Alongamento (Livre)
+              </div>
+            ) : selectedEx.isDuration ? (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10, marginBottom: 20 }}>
                 <div style={{ textAlign: 'center', padding: '12px', background: '#f8fafc', borderRadius: 12 }}>
                   <p style={{ fontSize: '0.55rem', color: '#94a3b8', fontWeight: 700 }}>DURAÇÃO</p>
@@ -401,7 +444,7 @@ const MyTrainingTab = ({
                     <p style={{ fontWeight: 700, fontSize: '1.1rem' }}>{selectedEx.reps}</p>
                   </div>
                   <div style={{ textAlign: 'center', padding: '12px', background: '#f8fafc', borderRadius: 12 }}>
-                    <p style={{ fontSize: '0.55rem', color: '#94a3b8', fontWeight: 700 }}>PAUSA</p>
+                    <p style={{ fontSize: '0.55rem', color: '#94a3b8', fontWeight: 700 }}>DESCANSO</p>
                     <p style={{ fontWeight: 700, fontSize: '1.1rem' }}>{selectedEx.rest}s</p>
                   </div>
                 </div>
@@ -412,25 +455,134 @@ const MyTrainingTab = ({
               {selectedEx.description || 'Foque na cadência e na amplitude total do movimento conforme o vídeo.'}
             </p>
 
-            {!selectedEx.isDuration && selectedEx.series && (
+            {/* Histórico de Cargas do Treino Anterior */}
+            {lastLoads && lastLoads.length > 0 && (
+              <div style={{ marginBottom: '20px', padding: '16px', background: '#eff6ff', border: '1px solid #dbeafe', borderRadius: 16 }}>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent, #2563eb)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  <TrendingUp size={14} /> Histórico de Cargas do Treino Anterior
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '8px 16px' }}>
+                  {lastLoads.map((load, lIdx) => (
+                    <div key={lIdx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#1e293b', fontWeight: 500 }}>
+                      <span>Série {lIdx + 1}:</span>
+                      <strong>{load.weight ? `${load.weight} kg` : '-'} × {load.reps ? `${load.reps} reps` : '-'}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedEx.category?.toLowerCase().trim() === 'mobilidade e alongamento' ? (
+              <div style={{ marginTop: '1.5rem' }}>
+                <h3 style={{ fontSize: '1rem', marginBottom: '12px', fontWeight: 600 }}>Concluir Atividade</h3>
+                {(() => {
+                  const entry = completedSeries[selectedEx.id]?.[0] || { checked: false, weight: '0', reps: '1' };
+                  const isCompleted = entry.checked || false;
+                  return (
+                    <button
+                      onClick={() => {
+                        const newChecked = !isCompleted;
+                        setCompletedSeries(prev => ({
+                          ...prev,
+                          [selectedEx.id]: [{ checked: newChecked, weight: '0', reps: '1' }]
+                        }));
+                        if (newChecked) {
+                          toast.success('Exercício concluído! Muito bem! 🎉');
+                        }
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '16px',
+                        borderRadius: '12px',
+                        border: 'none',
+                        background: isCompleted ? '#10b981' : '#1a1a1a',
+                        color: '#fff',
+                        fontWeight: 600,
+                        fontSize: '0.95rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {isCompleted ? (
+                        <>
+                          <CheckCircle2 size={18} />
+                          CONCLUÍDO ✓
+                        </>
+                      ) : (
+                        'MARCAR COMO REALIZADO'
+                      )}
+                    </button>
+                  );
+                })()}
+              </div>
+            ) : !selectedEx.isDuration && selectedEx.series ? (
               <div style={{ marginTop: '1.5rem' }}>
                 <h3 style={{ fontSize: '1rem', marginBottom: '12px', fontWeight: 600 }}>Controle de Séries</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {Array.from({ length: parseInt(selectedEx.series) || 0 }).map((_, idx) => {
-                    const isCompleted = completedSeries[selectedEx.id]?.[idx] || false;
+                    const seriesData = completedSeries[selectedEx.id]?.[idx] || { checked: false, weight: '', reps: '' };
+                    const isCompleted = seriesData.checked || false;
                     return (
                       <div 
                         key={idx} 
                         style={{ 
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
-                          padding: '12px 16px', background: isCompleted ? '#f8fafc' : '#fff', 
-                          border: '1px solid', borderColor: isCompleted ? '#e2e8f0' : '#f1f5f9',
+                          display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between', 
+                          padding: '10px 14px', background: isCompleted ? '#f8fafc' : '#fff', 
+                          border: '1px solid', borderColor: isCompleted ? '#e2e8f0' : '#cbd5e1',
                           borderRadius: '12px', transition: 'all 0.2s'
                         }}
                       >
-                        <span style={{ fontWeight: 600, color: isCompleted ? '#94a3b8' : '#1a1a1a', fontSize: '0.9rem' }}>
+                        <span style={{ fontWeight: 600, color: isCompleted ? '#94a3b8' : '#0f172a', fontSize: '0.85rem', minWidth: '60px' }}>
                           Série {idx + 1}
                         </span>
+                        
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <input 
+                            type="number"
+                            placeholder="Carga (kg)"
+                            value={seriesData.weight || ''}
+                            disabled={isCompleted || restTimer > 0}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setCompletedSeries(prev => {
+                                const current = prev[selectedEx.id] || [];
+                                const updated = [...current];
+                                updated[idx] = { ...seriesData, weight: val };
+                                return { ...prev, [selectedEx.id]: updated };
+                              });
+                            }}
+                            style={{ 
+                              width: '85px', padding: '6px 8px', border: '1px solid #cbd5e1', 
+                              borderRadius: '8px', fontSize: '0.8rem', textAlign: 'center', 
+                              background: isCompleted ? '#f1f5f9' : '#fff', color: '#0f172a', fontWeight: 600 
+                            }}
+                          />
+                          <input 
+                            type="number"
+                            placeholder="Reps"
+                            value={seriesData.reps || ''}
+                            disabled={isCompleted || restTimer > 0}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setCompletedSeries(prev => {
+                                const current = prev[selectedEx.id] || [];
+                                const updated = [...current];
+                                updated[idx] = { ...seriesData, reps: val };
+                                return { ...prev, [selectedEx.id]: updated };
+                              });
+                            }}
+                            style={{ 
+                              width: '70px', padding: '6px 8px', border: '1px solid #cbd5e1', 
+                              borderRadius: '8px', fontSize: '0.8rem', textAlign: 'center', 
+                              background: isCompleted ? '#f1f5f9' : '#fff', color: '#0f172a', fontWeight: 600 
+                            }}
+                          />
+                        </div>
+
                         <input 
                           type="checkbox" 
                           checked={isCompleted}
@@ -440,7 +592,7 @@ const MyTrainingTab = ({
                             setCompletedSeries(prev => {
                               const current = prev[selectedEx.id] || [];
                               const updated = [...current];
-                              updated[idx] = checked;
+                              updated[idx] = { ...seriesData, checked: checked };
                               return { ...prev, [selectedEx.id]: updated };
                             });
                             if (checked) {
@@ -455,7 +607,7 @@ const MyTrainingTab = ({
                           style={{ 
                             width: '20px', 
                             height: '20px', 
-                            accentColor: '#1a1a1a', 
+                            accentColor: 'var(--accent, #000000)', 
                             cursor: (isCompleted || restTimer > 0) ? 'not-allowed' : 'pointer', 
                             opacity: (isCompleted || restTimer > 0) ? 0.5 : 1 
                           }}
@@ -465,9 +617,9 @@ const MyTrainingTab = ({
                   })}
                 </div>
               </div>
-            )}
+            ) : null}
 
-            {selectedEx.isDuration && (
+            {selectedEx.isDuration && selectedEx.category?.toLowerCase().trim() !== 'mobilidade e alongamento' && (
               <div style={{ marginTop: '1.5rem' }}>
                 <h3 style={{ fontSize: '1rem', marginBottom: '12px', fontWeight: 600 }}>Status do Exercício</h3>
                 <div 
@@ -514,12 +666,16 @@ const MyTrainingTab = ({
                   } else {
                     // Check if all exercises are fully completed
                     const allExercisesCompleted = activeExercises.every(ex => {
-                      if (ex.isDuration) {
-                        return !!completedSeries[ex.id]?.[0];
+                      if (ex.category?.toLowerCase().trim() === 'mobilidade e alongamento') {
+                        const entry = completedSeries[ex.id]?.[0];
+                        return entry && (typeof entry === 'object' ? entry.checked : entry);
+                      } else if (ex.isDuration) {
+                        const entry = completedSeries[ex.id]?.[0];
+                        return entry && (typeof entry === 'object' ? entry.checked : entry);
                       } else {
                         const seriesCount = parseInt(ex.series || 0);
                         if (seriesCount <= 0) return true;
-                        const doneCount = completedSeries[ex.id]?.filter(Boolean).length || 0;
+                        const doneCount = completedSeries[ex.id]?.filter(s => s && (typeof s === 'object' ? s.checked : s)).length || 0;
                         return doneCount === seriesCount;
                       }
                     });
@@ -533,7 +689,20 @@ const MyTrainingTab = ({
                       userId: user.id,
                       trainingId: currentTraining.id,
                       trainingName: currentTraining.name,
-                      completedAt: new Date()
+                      completedAt: new Date(),
+                      exercisesData: activeExercises.map(ex => {
+                        const seriesList = completedSeries[ex.id] || [];
+                        return {
+                          id: ex.id,
+                          title: ex.title,
+                          series: seriesList.map(s => {
+                            if (typeof s === 'object') {
+                              return { checked: s.checked || false, weight: s.weight || '', reps: s.reps || '' };
+                            }
+                            return { checked: !!s, weight: '', reps: '' };
+                          })
+                        };
+                      })
                     };
 
                     if (!navigator.onLine) {

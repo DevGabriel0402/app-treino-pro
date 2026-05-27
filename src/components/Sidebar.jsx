@@ -199,7 +199,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
         <div className="logo-box">
           <Dumbbell size={18} color="black" />
         </div>
-        <h2>{settings?.systemName || 'ATLAS PRO'}</h2>
+        <h2>{settings?.systemName || 'TREINO PRO'}</h2>
       </LogoSection>
 
       <CollapseButton onClick={() => setIsCollapsed(!isCollapsed)}>

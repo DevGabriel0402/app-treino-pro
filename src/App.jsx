@@ -11,6 +11,7 @@ import { auth, db } from './services/firebase';
 import AdminPanel from './pages/AdminPanel';
 import StudentPanel from './pages/StudentPanel';
 import LoginPage from './pages/LoginPage';
+import LandingPage from './pages/LandingPage';
 import GlobalStyles from './styles/GlobalStyles';
 import DashboardLayout from './components/DashboardLayout';
 
@@ -146,8 +147,8 @@ function AppContent() {
         dispatch(setSettings(data));
       } else {
         const defaultSettings = {
-          systemName: 'ATLAS PRO',
-          pixCode: '00020101021126580014br.gov.bcb.pix01369c3a382c-4cfc-43f1-a1e6-42bb53c65c695204000053039865406150.005802BR5913AtlasProSaaS6009BeloHoriz62070503***63041A2D',
+          systemName: 'TREINO PRO',
+          pixCode: '00020101021126580014br.gov.bcb.pix01369c3a382c-4cfc-43f1-a1e6-42bb53c65c695204000053039865406150.005802BR5913TreinoProSaaS6009BeloHoriz62070503***63041A2D',
           contactPhone: '5531991660594',
           themeColor: '#000000'
         };
@@ -225,7 +226,7 @@ function AppContent() {
   }, [dispatch]);
 
   if (initializing) {
-    const systemName = settings?.systemName || 'ATLAS PRO';
+    const systemName = settings?.systemName || 'TREINO PRO';
     const accent = settings?.themeColor || '#3b82f6';
     return (
       <LoadingScreen>
@@ -254,13 +255,14 @@ function AppContent() {
         <GlobalStyles $accentColor={settings?.themeColor || '#000000'} />
         <Toaster position="top-right" />
         <Routes>
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage type="student" />} />
           <Route path="/admin/login" element={<LoginPage type="admin" />} />
           <Route path="*" element={
             location.pathname.startsWith('/admin') ? (
               <Navigate to="/admin/login" replace />
             ) : (
-              <Navigate to="/login" replace />
+              <Navigate to="/" replace />
             )
           } />
         </Routes>
@@ -289,6 +291,8 @@ function AppContent() {
             </DashboardLayout>
           ) : <Navigate to="/admin" replace />
         } />
+
+        <Route path="/landing" element={<LandingPage />} />
 
         <Route path="/" element={
           role === 'admin' ? <Navigate to="/admin" replace /> : <Navigate to="/aluno" replace />

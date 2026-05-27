@@ -218,14 +218,31 @@ const TrainingsTab = ({
       return;
     }
 
-    const formatted = selected.map(ex => ({
-      ...ex,
-      series: ex.category?.toLowerCase() === 'mobilidade e alongamento' ? '1' : '3',
-      reps: ex.category?.toLowerCase() === 'mobilidade e alongamento' ? '30s' : '12',
-      rest: ex.category?.toLowerCase() === 'mobilidade e alongamento' ? '15' : '60',
-      isDuration: ex.category?.toLowerCase() === 'mobilidade e alongamento' ? true : false,
-      substitutes: ex.substitutes || []
-    }));
+    const formatted = selected.map(ex => {
+      const isMobility = ex.category?.toLowerCase().trim() === 'mobilidade e alongamento';
+      const similar = exercises
+        .filter(item => 
+          item.category?.toLowerCase().trim() === ex.category?.toLowerCase().trim() && 
+          item.id !== ex.id
+        )
+        .slice(0, 3)
+        .map(item => ({
+          id: item.id || '',
+          title: item.title || '',
+          category: item.category || '',
+          gifUrl: item.gifUrl || '',
+          description: item.description || ''
+        }));
+
+      return {
+        ...ex,
+        series: isMobility ? '' : '3',
+        reps: isMobility ? '' : '12',
+        rest: isMobility ? '' : '60',
+        isDuration: false,
+        substitutes: (ex.substitutes && ex.substitutes.length > 0) ? ex.substitutes : similar
+      };
+    });
 
     setTrainingExercises(formatted);
     setTrainingName(name);
@@ -365,33 +382,39 @@ const TrainingsTab = ({
                 <h4>{ex.title}</h4>
                 <Trash2 size={18} color="#ef4444" cursor="pointer" onClick={() => setTrainingExercises(trainingExercises.filter((_, i) => i !== idx))} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : (ex.isDuration ? '1fr 1fr' : 'repeat(4, 1fr)'), gap: '1rem' }}>
-                {!ex.isDuration && (
-                  <>
-                    <InputGroup>
-                      <label>Séries</label>
-                      <input value={ex.series} onChange={e => updateExerciseDetail(idx, 'series', e.target.value)} />
-                    </InputGroup>
-                    <InputGroup>
-                      <label>Reps/Peso</label>
-                      <input value={ex.reps} onChange={e => updateExerciseDetail(idx, 'reps', e.target.value)} />
-                    </InputGroup>
-                  </>
-                )}
-                <InputGroup>
-                  <label>{ex.isDuration ? 'Duração' : 'Descanso'}</label>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input value={ex.rest} onChange={e => updateExerciseDetail(idx, 'rest', e.target.value)} />
-                    <ActionButton 
-                      $outline 
-                      style={{ width: 'auto' }} 
-                      onClick={() => updateExerciseDetail(idx, 'isDuration', !ex.isDuration)}
-                    >
-                      {ex.isDuration ? <Clock size={16} /> : <Timer size={16} />}
-                    </ActionButton>
-                  </div>
-                </InputGroup>
-              </div>
+              {ex.category?.toLowerCase().trim() === 'mobilidade e alongamento' ? (
+                <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '10px', border: '1px dashed #cbd5e1', color: '#64748b', fontSize: '0.85rem', fontWeight: 500 }}>
+                  🧘 <strong>Mobilidade e Alongamento:</strong> Este exercício é livre e não necessita de séries, repetições ou descanso.
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : (ex.isDuration ? '1fr 1fr' : 'repeat(4, 1fr)'), gap: '1rem' }}>
+                  {!ex.isDuration && (
+                    <>
+                      <InputGroup>
+                        <label>Séries</label>
+                        <input value={ex.series} onChange={e => updateExerciseDetail(idx, 'series', e.target.value)} />
+                      </InputGroup>
+                      <InputGroup>
+                        <label>Reps/Peso</label>
+                        <input value={ex.reps} onChange={e => updateExerciseDetail(idx, 'reps', e.target.value)} />
+                      </InputGroup>
+                    </>
+                  )}
+                  <InputGroup>
+                    <label>{ex.isDuration ? 'Duração' : 'Descanso'}</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input value={ex.rest} onChange={e => updateExerciseDetail(idx, 'rest', e.target.value)} />
+                      <ActionButton 
+                        $outline 
+                        style={{ width: 'auto' }} 
+                        onClick={() => updateExerciseDetail(idx, 'isDuration', !ex.isDuration)}
+                      >
+                        {ex.isDuration ? <Clock size={16} /> : <Timer size={16} />}
+                      </ActionButton>
+                    </div>
+                  </InputGroup>
+                </div>
+              )}
 
               {/* Seção de Substitutos */}
               <div style={{ marginTop: '1.5rem', borderTop: '1px solid #f1f5f9', paddingTop: '1.5rem' }}>

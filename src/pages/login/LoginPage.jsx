@@ -332,7 +332,7 @@ const LoginPage = ({ type = 'student' }) => {
           <div style={{ background: '#fff', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
             <Dumbbell size={20} color="black" />
           </div>
-          <span style={{ fontWeight: 800, letterSpacing: '3px', fontSize: '1.1rem', color: '#fff' }}>{settings?.systemName || 'ATLAS PRO'}</span>
+          <span style={{ fontWeight: 800, letterSpacing: '3px', fontSize: '1.1rem', color: '#fff' }}>{settings?.systemName || 'TREINO PRO'}</span>
         </div>
         <h1>
           {isAdmin ? (
@@ -364,7 +364,7 @@ const LoginPage = ({ type = 'student' }) => {
               <Dumbbell size={22} color={isAdmin ? '#a855f7' : 'var(--accent)'} />
             </div>
             <span style={{ fontWeight: 800, letterSpacing: '2px', fontSize: '1rem', textTransform: 'uppercase' }}>
-              {settings?.systemName || 'ATLAS PRO'}
+              {settings?.systemName || 'TREINO PRO'}
             </span>
           </div>
 
@@ -388,7 +388,7 @@ const LoginPage = ({ type = 'student' }) => {
                     </InputIcon>
                     <Input 
                       type="email" 
-                      placeholder="coach@atlaspro.com" 
+                      placeholder="coach@treinopro.com" 
                       value={email} 
                       onChange={e => setEmail(e.target.value)} 
                       required 
@@ -455,7 +455,7 @@ const LoginPage = ({ type = 'student' }) => {
           </SwitchLink>
           
           <p style={{ marginTop: '3.5rem', fontSize: '0.75rem', color: '#52525b', textAlign: 'center', fontWeight: 600, letterSpacing: '0.5px' }}>
-            PROTEGIDO POR PROTOCOLO ATLAS SECURITY
+            PROTEGIDO POR PROTOCOLO TREINO SECURITY
           </p>
         </FormContainer>
       </FormSection>

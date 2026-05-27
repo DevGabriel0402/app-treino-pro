@@ -6,8 +6,8 @@ const initialState = {
   role: 'student', // 'admin' or 'student'
   loading: false,
   settings: savedSettings ? JSON.parse(savedSettings) : {
-    systemName: 'ATLAS PRO',
-    pixCode: '00020101021126580014br.gov.bcb.pix01369c3a382c-4cfc-43f1-a1e6-42bb53c65c695204000053039865406150.005802BR5913AtlasProSaaS6009BeloHoriz62070503***63041A2D',
+    systemName: 'TREINO PRO',
+    pixCode: '00020101021126580014br.gov.bcb.pix01369c3a382c-4cfc-43f1-a1e6-42bb53c65c695204000053039865406150.005802BR5913TreinoProSaaS6009BeloHoriz62070503***63041A2D',
     contactPhone: '5531991660594',
     themeColor: '#000000'
   }
