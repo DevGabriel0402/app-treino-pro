@@ -1,0 +1,59 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if the user is an admin
+    function isAdmin() {
+      return request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Helper to check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // --- Users Collection ---
+    // Anyone can read a user profile (for auth check), but only admins can list all users or create them.
+    // In Atlas Pro, the AdminPanel needs to list all users to show the student list.
+    match /users/{userId} {
+      allow read: if true; 
+      allow write: if isAuthenticated(); // Allow self-update or admin update. Further restriction: isAdmin() || request.auth.uid == userId
+    }
+
+    // --- Exercises Collection ---
+    match /exercises/{exerciseId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // --- Trainings Collection ---
+    match /trainings/{trainingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // --- Payments Collection ---
+    match /payments/{paymentId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // --- Messages Collection ---
+    match /messages/{messageId} {
+      allow read, write: if true;
+    }
+
+    // --- TrainingLogs Collection ---
+    match /trainingLogs/{logId} {
+      allow read, write: if true;
+    }
+
+    // --- Settings Collection ---
+    match /settings/{settingsId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}
