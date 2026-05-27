@@ -639,6 +639,7 @@ const StudentPanel = () => {
           element={
             <ProfileTab 
               user={user}
+              settings={settings}
               profileWeight={profileWeight}
               setProfileWeight={setProfileWeight}
               profileHeight={profileHeight}

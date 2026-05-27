@@ -993,15 +993,10 @@ const LandingPage = () => {
   const infinitePayHandle = settings?.infinitePayHandle || '';
   const accentColor = settings?.themeColor || '#2563eb';
   
-  // Custom message for WhatsApp CTA
-  const whatsappMessage = encodeURIComponent(
-    `Olá! Estive analisando a sua landing page da consultoria fitness no ${systemName} e gostaria de saber mais informações sobre como funciona o acompanhamento e os treinos personalizados!`
-  );
-  
-  const whatsappLink = `https://api.whatsapp.com/send?phone=${contactPhone}&text=${whatsappMessage}`;
-  const checkoutLink = infinitePayHandle 
-    ? `https://checkout.infinitepay.io/links/${infinitePayHandle}`
-    : whatsappLink;
+  // Custom message for WhatsApp CTA to join TeamPro
+  const joinMessage = encodeURIComponent('Olá! Quero entrar para o TeamPro e iniciar meus treinos personalizados!');
+  const whatsappJoinLink = `https://wa.me/${contactPhone}?text=${joinMessage}`;
+  const checkoutLink = whatsappJoinLink;
 
   return (
     <PageContainer style={{ '--accent': accentColor }}>
@@ -1461,42 +1456,30 @@ const LandingPage = () => {
 
       <PricingSection id="preco">
         <PricingCard>
-          <span className="badge">Acesso Imediato</span>
-          <h2>Assinatura Mensal</h2>
-          <div className="price">R$ 97,90 <span>/ mês</span></div>
-          <p className="recurrence">Cancele quando quiser. Sem contratos de fidelidade.</p>
+          <span className="badge" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534' }}>Vagas Limitadas</span>
+          <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '1rem', letterSpacing: '-0.5px' }}>Entre para o TeamPro</h2>
+          <p className="recurrence" style={{ fontSize: '0.95rem', color: '#64748b', lineHeight: 1.6, marginBottom: '2rem' }}>
+            Fale diretamente comigo pelo WhatsApp para garantir sua vaga na consultoria fitness premium e receber seu planejamento individualizado de treinos e mobilidade.
+          </p>
           
-          <div className="perks">
-            <div className="perk-item">
-              <Check size={16} className="check" />
-              <span>Treinos 100% individualizados</span>
+          <div className="perks" style={{ borderTop: '1px solid #edf2f7', borderBottom: '1px solid #edf2f7', padding: '1.5rem 0', marginBottom: '2rem', display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'left' }}>
+            <div className="perk-item" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Check size={16} style={{ color: '#10b981' }} />
+              <span style={{ fontSize: '0.9rem', color: '#334155', fontWeight: 500 }}>Planejamento de treinos 100% individualizado</span>
             </div>
-            <div className="perk-item">
-              <Check size={16} className="check" />
-              <span>Acesso total ao portal do aluno (mobile/desktop)</span>
+            <div className="perk-item" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Check size={16} style={{ color: '#10b981' }} />
+              <span style={{ fontSize: '0.9rem', color: '#334155', fontWeight: 500 }}>Suporte e ajustes constantes via WhatsApp</span>
             </div>
-            <div className="perk-item">
-              <Check size={16} className="check" />
-              <span>Instruções visuais e GIFs dinâmicos na tela</span>
-            </div>
-            <div className="perk-item">
-              <Check size={16} className="check" />
-              <span>Registro e histórico de evolução de cargas</span>
-            </div>
-            <div className="perk-item">
-              <Check size={16} className="check" />
-              <span>Suporte direto via WhatsApp com o treinador</span>
+            <div className="perk-item" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Check size={16} style={{ color: '#10b981' }} />
+              <span style={{ fontSize: '0.9rem', color: '#334155', fontWeight: 500 }}>Acesso completo ao aplicativo do aluno</span>
             </div>
           </div>
 
-          <HeroButton className="primary" style={{ width: '100%' }} onClick={() => window.open(checkoutLink, '_blank')}>
-            Iniciar Minha Transformação
+          <HeroButton className="primary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '16px' }} onClick={() => window.open(checkoutLink, '_blank')}>
+            Falar no WhatsApp & Garantir Vaga <ArrowRight size={16} />
           </HeroButton>
-
-          <GuaranteeStrip>
-            <Shield size={14} color="#10b981" />
-            <span>Garantia de 7 dias com devolução total do dinheiro</span>
-          </GuaranteeStrip>
         </PricingCard>
       </PricingSection>
 

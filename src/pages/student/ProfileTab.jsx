@@ -101,6 +101,7 @@ const DesktopSpacer = styled.div`
 
 const ProfileTab = ({
   user,
+  settings,
   profileWeight,
   setProfileWeight,
   profileHeight,
@@ -233,6 +234,34 @@ const ProfileTab = ({
             <span style={{ color: '#64748b' }}>Vencimento:</span>
             <strong style={{ color: '#0f172a' }}>{formatDueDate(pendingPayment?.dueDate)}</strong>
           </div>
+        </Card>
+
+        {/* Card 4: Fale com o Treinador */}
+        <Card style={{ padding: '1.5rem', gap: '12px' }}>
+          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            SUPORTE & CONTATO
+          </span>
+          <p style={{ fontSize: '0.8rem', color: '#64748b', lineHeight: 1.4, margin: 0 }}>
+            Dúvidas sobre treinos, cargas ou execução? Fale diretamente com o seu treinador no WhatsApp.
+          </p>
+          <BlockedButton 
+            onClick={() => {
+              const contactPhone = settings?.contactPhone || '5531991660594';
+              const text = encodeURIComponent('Olá Treinador! Gostaria de tirar uma dúvida sobre meus treinos.');
+              window.open(`https://wa.me/${contactPhone}?text=${text}`, '_blank');
+            }}
+            style={{ 
+              background: '#25d366', 
+              color: '#fff',
+              marginTop: 4,
+              boxShadow: '0 4px 12px rgba(37, 211, 102, 0.15)'
+            }}
+          >
+            <svg style={{ width: 18, height: 18, fill: 'currentColor' }} viewBox="0 0 24 24">
+              <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.66.986 3.284 1.447 4.74 1.448 5.4.002 9.792-4.385 9.795-9.774.002-2.611-1.012-5.066-2.857-6.914C16.42 2.067 13.968 1.054 11.96 1.055c-5.4 0-9.79 4.386-9.794 9.777-.001 1.767.487 3.323 1.446 4.908L2.57 21.43l6.077-1.593-.001-.001-.001-.001zM16.2 13.66c-.228-.113-1.346-.665-1.554-.74-.208-.076-.36-.113-.512.114-.152.227-.587.739-.72.89-.133.15-.265.17-.493.057-.228-.114-.962-.355-1.834-1.134-.679-.606-1.138-1.355-1.271-1.583-.133-.227-.014-.35.1-.463.102-.102.228-.266.342-.398.114-.132.152-.227.228-.379.076-.151.038-.284-.019-.398-.057-.113-.512-1.233-.701-1.69-.184-.445-.37-.384-.512-.391-.132-.007-.284-.008-.436-.008-.152 0-.4-.057-.608.17-.208.228-.796.777-.796 1.895 0 1.118.812 2.198.925 2.35.114.15 1.598 2.44 3.87 3.424.54.234.962.373 1.29.478.543.172 1.037.147 1.427.089.435-.065 1.346-.55 1.536-1.08.19-.53.19-.984.133-1.08-.057-.095-.209-.151-.437-.265z"/>
+            </svg>
+            Falar com o Treinador
+          </BlockedButton>
         </Card>
       </div>
 
