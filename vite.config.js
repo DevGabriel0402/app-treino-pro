@@ -42,6 +42,38 @@ export default defineConfig({
               res.writeHead(500, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ success: false, error: err.message }));
             }
+          } else if (req.url === '/api/create-infinitepay-link' && req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => {
+              body += chunk.toString();
+            });
+            req.on('end', async () => {
+              try {
+                const parsedBody = JSON.parse(body);
+                const payload = {
+                  handle: parsedBody.handle,
+                  items: parsedBody.items
+                };
+                if (parsedBody.webhook_url) {
+                  payload.webhook_url = parsedBody.webhook_url;
+                }
+
+                const apiRes = await fetch('https://api.checkout.infinitepay.io/links', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify(payload)
+                });
+
+                const data = await apiRes.json();
+                res.writeHead(apiRes.status, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify(data));
+              } catch (err) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: err.message }));
+              }
+            });
           } else {
             next();
           }

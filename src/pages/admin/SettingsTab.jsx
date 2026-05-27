@@ -129,6 +129,17 @@ const SettingsTab = ({
             Insira o nome de usuário (handle) que você usa no InfinitePay. Ele será usado para gerar links de cobrança automáticos.
           </span>
         </InputGroup>
+        <InputGroup style={{ marginTop: '1rem' }}>
+          <label>Webhook URL (Opcional - Notificações de pagamento)</label>
+          <input 
+            value={settingsForm.infinitePayWebhookUrl || ''} 
+            onChange={e => setSettingsForm({ ...settingsForm, infinitePayWebhookUrl: e.target.value.trim() })} 
+            placeholder="Ex: https://seusite.com/webhook-infinitepay" 
+          />
+          <span style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 4 }}>
+            URL de webhook que receberá as notificações de pagamento confirmado do InfinitePay (ex: webhook_url).
+          </span>
+        </InputGroup>
 
         <h3 style={{ margin: '2rem 0 1.5rem 0', fontSize: '1.2rem', fontWeight: 600, borderTop: '1px solid #f1f5f9', paddingTop: '2rem' }}>Contato & Suporte</h3>
         <InputGroup>

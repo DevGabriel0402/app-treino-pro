@@ -133,7 +133,7 @@ const InputGroup = styled.div`
 const AdminPanel = () => {
   const navigate = useNavigate();
   const { settings } = useSelector(state => state.auth);
-  const [settingsForm, setSettingsForm] = useState({ systemName: '', pixCode: '', contactPhone: '', themeColor: '#000000', infinitePayHandle: '' });
+  const [settingsForm, setSettingsForm] = useState({ systemName: '', pixCode: '', contactPhone: '', themeColor: '#000000', infinitePayHandle: '', infinitePayWebhookUrl: '' });
 
   const [exercises, setExercises] = useState([]);
   const [students, setStudents] = useState([]);
@@ -158,7 +158,8 @@ const AdminPanel = () => {
         pixCode: settings.pixCode || '',
         contactPhone: settings.contactPhone || '',
         themeColor: settings.themeColor || '#000000',
-        infinitePayHandle: settings.infinitePayHandle || ''
+        infinitePayHandle: settings.infinitePayHandle || '',
+        infinitePayWebhookUrl: settings.infinitePayWebhookUrl || ''
       });
     }
   }, [settings]);
@@ -312,22 +313,34 @@ const AdminPanel = () => {
       if (activeHandle) {
         const toastId = toast.loading('Gerando link de pagamento no InfinitePay...');
         try {
-          const res = await fetch('https://api.checkout.infinitepay.io/links', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              handle: activeHandle,
-              items: [
-                {
-                  quantity: 1,
-                  price: priceInCents,
-                  description: `Mensalidade - ${student.name}`
-                }
-              ]
-            })
-          });
+          let res;
+          try {
+            // First try calling our Vite local proxy to bypass CORS
+            res = await fetch('/api/create-infinitepay-link', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                handle: activeHandle,
+                items: [{ quantity: 1, price: priceInCents, description: `Mensalidade - ${student.name}` }],
+                ...(settingsForm.infinitePayWebhookUrl ? { webhook_url: settingsForm.infinitePayWebhookUrl } : {})
+              })
+            });
+          } catch (localErr) {
+            console.warn("Proxy local indisponível, tentando chamada direta...", localErr);
+          }
+
+          // If proxy returned 404 or failed, try direct browser call
+          if (!res || res.status === 404) {
+            res = await fetch('https://api.checkout.infinitepay.io/links', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                handle: activeHandle,
+                items: [{ quantity: 1, price: priceInCents, description: `Mensalidade - ${student.name}` }],
+                ...(settingsForm.infinitePayWebhookUrl ? { webhook_url: settingsForm.infinitePayWebhookUrl } : {})
+              })
+            });
+          }
 
           if (res.ok) {
             const data = await res.json();
