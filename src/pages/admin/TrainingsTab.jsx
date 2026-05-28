@@ -218,12 +218,14 @@ const TrainingsTab = ({
       return;
     }
 
+    const selectedIds = selected.map(item => item.id);
     const formatted = selected.map(ex => {
       const isMobility = ex.category?.toLowerCase().trim() === 'mobilidade e alongamento';
       const similar = exercises
         .filter(item => 
           item.category?.toLowerCase().trim() === ex.category?.toLowerCase().trim() && 
-          item.id !== ex.id
+          item.id !== ex.id &&
+          !selectedIds.includes(item.id)
         )
         .slice(0, 3)
         .map(item => ({
@@ -505,6 +507,7 @@ const TrainingsTab = ({
                             const normalizedItemCategory = (item.category || '').trim().toLowerCase();
                             return item.id !== ex.id && 
                                    normalizedItemCategory === normalizedExCategory && 
+                                   !trainingExercises.some(te => te.id === item.id) &&
                                    !(ex.substitutes || []).some(s => s.id === item.id);
                           })
                           .sort((a, b) => a.title.localeCompare(b.title))

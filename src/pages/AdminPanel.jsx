@@ -756,12 +756,14 @@ const AdminPanel = () => {
 
   const handleAddExerciseToTraining = (ex) => {
     const isMobility = ex.category?.toLowerCase().trim() === 'mobilidade e alongamento';
+    const currentIds = trainingExercises.map(item => item.id);
     
     // Find similar exercises from the same category as suggestions for substitutes
     const similar = exercises
       .filter(item => 
         item.category?.toLowerCase().trim() === ex.category?.toLowerCase().trim() && 
-        item.id !== ex.id
+        item.id !== ex.id &&
+        !currentIds.includes(item.id)
       )
       .slice(0, 3)
       .map(item => ({

@@ -351,46 +351,56 @@ const MyTrainingTab = ({
                   {showSubstitutesList && (
                     <div style={{ marginTop: 12, background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
                       <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>Alternativas configuradas:</p>
-                      {selectedEx.substitutes.map((sub, sIdx) => (
-                        <div 
-                          key={sIdx} 
-                          onClick={() => {
-                            const exIndex = activeExercises.findIndex(item => item.id === selectedEx.id);
-                            if (exIndex !== -1) {
-                              const updatedList = [...activeExercises];
-                              updatedList[exIndex] = {
-                                ...selectedEx,
-                                id: sub.id,
-                                title: sub.title,
-                                category: sub.category,
-                                gifUrl: sub.gifUrl,
-                                description: sub.description || ''
-                              };
-                              setActiveExercises(updatedList);
-                              setSelectedEx(updatedList[exIndex]);
-                              setShowSubstitutesList(false);
-                              toast.success(`Exercício substituído por "${sub.title}"! 💪`);
-                            }
-                          }}
-                          style={{ 
-                            padding: 12, 
-                            background: '#fff', 
-                            border: '1px solid #e2e8f0', 
-                            borderRadius: 10, 
-                            cursor: 'pointer', 
-                            display: 'flex', 
-                            justifyContent: 'space-between', 
-                            alignItems: 'center',
-                            transition: 'all 0.2s'
-                          }}
-                        >
-                          <div>
-                            <p style={{ fontWeight: 600, fontSize: '0.85rem', color: '#1a1a1a' }}>{sub.title}</p>
-                            <p style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', marginTop: 2 }}>{sub.category}</p>
+                      {(() => {
+                        const availableSubs = selectedEx.substitutes.filter(sub => !activeExercises.some(ae => ae.id === sub.id));
+                        if (availableSubs.length === 0) {
+                          return (
+                            <p style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic', margin: '4px 0' }}>
+                              Nenhuma alternativa de substituição disponível que já não faça parte do seu treino de hoje.
+                            </p>
+                          );
+                        }
+                        return availableSubs.map((sub, sIdx) => (
+                          <div 
+                            key={sIdx} 
+                            onClick={() => {
+                              const exIndex = activeExercises.findIndex(item => item.id === selectedEx.id);
+                              if (exIndex !== -1) {
+                                const updatedList = [...activeExercises];
+                                updatedList[exIndex] = {
+                                  ...selectedEx,
+                                  id: sub.id,
+                                  title: sub.title,
+                                  category: sub.category,
+                                  gifUrl: sub.gifUrl,
+                                  description: sub.description || ''
+                                };
+                                setActiveExercises(updatedList);
+                                setSelectedEx(updatedList[exIndex]);
+                                setShowSubstitutesList(false);
+                                toast.success(`Exercício substituído por "${sub.title}"! 💪`);
+                              }
+                            }}
+                            style={{ 
+                              padding: 12, 
+                              background: '#fff', 
+                              border: '1px solid #e2e8f0', 
+                              borderRadius: 10, 
+                              cursor: 'pointer', 
+                              display: 'flex', 
+                              justifyContent: 'space-between', 
+                              alignItems: 'center',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <div>
+                              <p style={{ fontWeight: 600, fontSize: '0.85rem', color: '#1a1a1a' }}>{sub.title}</p>
+                              <p style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', marginTop: 2 }}>{sub.category}</p>
+                            </div>
+                            <RefreshCw size={14} color="#94a3b8" />
                           </div>
-                          <RefreshCw size={14} color="#94a3b8" />
-                        </div>
-                      ))}
+                        ));
+                      })()}
                     </div>
                   )}
                 </div>
