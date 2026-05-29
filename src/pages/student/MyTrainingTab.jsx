@@ -9,9 +9,12 @@ import {
   Timer,
   RefreshCw,
   Dumbbell,
-  TrendingUp
+  TrendingUp,
+  Download
 } from 'lucide-react';
 import { collection, addDoc, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { pdf } from '@react-pdf/renderer';
+import TrainingPDF from '../../components/TrainingPDF';
 
 const SectionHeader = styled.div`
   margin-bottom: 3rem;
@@ -132,6 +135,7 @@ const MyTrainingTab = ({
   setShowTrainingList,
   db,
   user,
+  settings,
   toast
 }) => {
   const [activeExercises, setActiveExercises] = React.useState([]);
@@ -139,6 +143,40 @@ const MyTrainingTab = ({
   const [imageLoaded, setImageLoaded] = React.useState(false);
   const [imageError, setImageError] = React.useState(false);
   const [lastLoads, setLastLoads] = React.useState(null);
+
+  const handleDownloadPDF = async () => {
+    if (!currentTraining || !user || !exercises || exercises.length === 0) {
+      toast.error("Nenhum exercício carregado para gerar o PDF.");
+      return;
+    }
+    const toastId = toast.loading('Gerando PDF do treino...');
+    try {
+      const doc = (
+        <TrainingPDF 
+          student={user} 
+          name={currentTraining.name} 
+          exercises={exercises} 
+          systemName={settings?.systemName || 'TREINO PRO'} 
+          themeColor={settings?.themeColor || '#000000'} 
+        />
+      );
+      const blob = await pdf(doc).toBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const cleanStudentName = user.name.replace(/\s+/g, '_');
+      const cleanTrainingName = currentTraining.name.replace(/\s+/g, '_');
+      link.download = `Treino_${cleanStudentName}_${cleanTrainingName}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('PDF baixado com sucesso!', { id: toastId });
+    } catch (err) {
+      console.error("Erro ao gerar PDF:", err);
+      toast.error("Erro ao gerar PDF.", { id: toastId });
+    }
+  };
 
   React.useEffect(() => {
     if (exercises) {
@@ -219,17 +257,40 @@ const MyTrainingTab = ({
   return (
     <>
       <SectionHeader>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button 
-            onClick={() => setShowTrainingList(true)} 
-            style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}
-          >
-            <ArrowLeft size={24} color="#1a1a1a" />
-          </button>
-          <div>
-            <h1 style={{ fontSize: '1.5rem', margin: 0 }}>{currentTraining?.name || 'Meu Plano'}</h1>
-            <p style={{ margin: 0, marginTop: 4 }}>Rotina personalizada.</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button 
+              onClick={() => setShowTrainingList(true)} 
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}
+            >
+              <ArrowLeft size={24} color="#1a1a1a" />
+            </button>
+            <div>
+              <h1 style={{ fontSize: '1.5rem', margin: 0 }}>{currentTraining?.name || 'Meu Plano'}</h1>
+              <p style={{ margin: 0, marginTop: 4 }}>Rotina personalizada.</p>
+            </div>
           </div>
+          <button
+            onClick={handleDownloadPDF}
+            style={{
+              background: 'transparent',
+              border: '1px solid #cbd5e1',
+              borderRadius: '10px',
+              padding: '8px 12px',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              transition: 'all 0.2s',
+              color: '#475569'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#0f172a'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#475569'; }}
+          >
+            <Download size={14} /> PDF
+          </button>
         </div>
       </SectionHeader>
 

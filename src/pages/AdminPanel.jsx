@@ -14,8 +14,13 @@ import {
   Edit2,
   ArrowLeft,
   DollarSign,
-  AlertCircle
+  AlertCircle,
+  Download,
+  Send,
+  ChevronRight
 } from 'lucide-react';
+import { pdf } from '@react-pdf/renderer';
+import TrainingPDF from '../components/TrainingPDF';
 import { collection, addDoc, getDocs, deleteDoc, doc, query, where, orderBy, updateDoc, limit, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { toast } from 'react-hot-toast';
@@ -191,6 +196,9 @@ const AdminPanel = () => {
   const [categoryFilter, setCategoryFilter] = useState('Todos');
   const [librarySearch, setLibrarySearch] = useState('');
   const [libraryCategoryFilter, setLibraryCategoryFilter] = useState('Todos');
+  const [savedTrainingInfo, setSavedTrainingInfo] = useState(null);
+  const [studentTrainings, setStudentTrainings] = useState([]);
+  const [selectedTrainingForView, setSelectedTrainingForView] = useState(null);
 
   const muscleGroups = [
     'Antebraços', 'Bíceps', 'Cardio Academia', 'Costas', 'Eretores da espinha', 
@@ -262,25 +270,21 @@ const AdminPanel = () => {
       getDocs(q).then(snap => {
         if (!snap.empty) {
           const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-          setStudentTraining(docs[0]);
+          docs.sort((a, b) => {
+            const timeA = a.createdAt?.seconds || (a.createdAt ? new Date(a.createdAt).getTime() / 1000 : 0);
+            const timeB = b.createdAt?.seconds || (b.createdAt ? new Date(b.createdAt).getTime() / 1000 : 0);
+            return timeB - timeA;
+          });
+          setStudentTrainings(docs);
+        } else {
+          setStudentTrainings([]);
         }
-        else setStudentTraining(null);
       }).catch(err => console.error(err));
 
-      // Fetch student training logs
-      const qLogs = query(
-        collection(db, "trainingLogs"), 
-        where("userId", "==", selectedProfile.id), 
-        orderBy("completedAt", "desc"),
-        limit(20)
-      );
-      getDocs(qLogs).then(snap => {
-        setStudentLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      }).catch(err => console.error(err));
+      setSelectedTrainingForView(null);
     } else {
-      setStudentTraining(null);
-      setStudentLogs([]);
+      setStudentTrainings([]);
+      setSelectedTrainingForView(null);
     }
   }, [selectedProfile]);
 
@@ -406,10 +410,64 @@ const AdminPanel = () => {
     setSelectedProfile(null);
   };
 
+  const handleCreateNewTrainingForStudent = () => {
+    setSelectedStudent(selectedProfile);
+    setTrainingName('');
+    setTrainingExercises([]);
+    setEditingTrainingId(null);
+    setTrainingStep(2);
+    navigate('/admin/trainings');
+    setSelectedProfile(null);
+  };
+
   const updateExerciseDetail = (idx, field, value) => {
     const updated = [...trainingExercises];
     updated[idx][field] = value;
     setTrainingExercises(updated);
+  };
+
+  const handleDownloadPDF = async (info) => {
+    const toastId = toast.loading('Gerando PDF...');
+    try {
+      const doc = (
+        <TrainingPDF 
+          student={info.student} 
+          name={info.name} 
+          exercises={info.exercises} 
+          systemName={settingsForm.systemName || 'TREINO PRO'} 
+          themeColor={settingsForm.themeColor || '#000000'} 
+        />
+      );
+      const blob = await pdf(doc).toBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const cleanStudentName = info.student.name.replace(/\s+/g, '_');
+      const cleanTrainingName = info.name.replace(/\s+/g, '_');
+      link.download = `Treino_${cleanStudentName}_${cleanTrainingName}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('PDF baixado com sucesso!', { id: toastId });
+    } catch (err) {
+      console.error("Erro ao gerar PDF:", err);
+      toast.error("Erro ao gerar PDF.", { id: toastId });
+    }
+  };
+
+  const handleShareWhatsApp = (info) => {
+    const student = info.student;
+    if (!student.phone) {
+      toast.error("Aluno não possui telefone cadastrado.");
+      return;
+    }
+    const cleanPhone = student.phone.replace(/\D/g, "");
+    const formattedPhone = cleanPhone.startsWith("55") ? cleanPhone : "55" + cleanPhone;
+    const systemName = settingsForm.systemName || "TREINO PRO";
+    const message = `Olá, ${student.name}! Montei o seu treino "${info.name}" no ${systemName}. Você já pode acessá-lo na plataforma! Bons treinos! 💪`;
+    const url = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+    window.open(url, "_blank");
   };
 
   const handleSaveTraining = async () => {
@@ -431,7 +489,15 @@ const AdminPanel = () => {
       if (editingTrainingId) await updateDoc(doc(db, "trainings", editingTrainingId), trainingData);
       else await addDoc(collection(db, "trainings"), { ...trainingData, createdAt: new Date() });
       toast.success(editingTrainingId ? 'Treino atualizado!' : 'Novo treino enviado!');
+      
+      const savedInfo = {
+        student: selectedStudent,
+        name: trainingName,
+        exercises: [...trainingExercises]
+      };
+
       setTrainingExercises([]); setSelectedStudent(null); setTrainingName(''); setEditingTrainingId(null); setTrainingStep(1);
+      setSavedTrainingInfo(savedInfo);
       fetchData();
     } catch (e) { toast.error('Erro ao salvar.'); }
   };
@@ -787,82 +853,205 @@ const AdminPanel = () => {
     <PanelContainer>
       {selectedProfile && (
         <Modal>
-          <ModalContent $wide>
-            <X onClick={() => setSelectedProfile(null)} style={{ position: 'absolute', top: 24, right: 24, cursor: 'pointer', color: '#94a3b8', zIndex: 10 }} />
-            <div style={{ display: 'flex', gap: '2.5rem', flexDirection: window.innerWidth < 768 ? 'column' : 'row' }}>
-              <div style={{ width: window.innerWidth < 768 ? '100%' : 260, flexShrink: 0 }}>
-                <div style={{ width: 100, height: 100, background: '#f8fafc', borderRadius: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', fontWeight: 500, marginBottom: '1.25rem' }}>{selectedProfile.name.charAt(0)}</div>
-                <h2>{selectedProfile.name}</h2>
-                <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: 4 }}>{selectedProfile.goal}</p>
-                <div style={{ marginTop: '2.5rem', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <ActionButton style={{ width: '100%' }} onClick={() => { setEditingStudent(selectedProfile); setStudentForm(selectedProfile); setShowAddStudent(true); }}>Editar Aluno</ActionButton>
+          <ModalContent style={{ maxWidth: '650px', padding: '2.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
+              <div>
+                <h2 style={{ fontSize: '1.6rem', fontWeight: 700, color: '#0f172a' }}>
+                  {selectedTrainingForView ? `Detalhes: ${selectedTrainingForView.name}` : `Treinos de ${selectedProfile.name}`}
+                </h2>
+                <p style={{ color: '#64748b', fontSize: '0.85rem', marginTop: 4 }}>
+                  Objetivo: {selectedProfile.goal}
+                </p>
+              </div>
+              <X onClick={() => setSelectedProfile(null)} style={{ cursor: 'pointer', color: '#94a3b8' }} size={24} />
+            </div>
+
+            {selectedTrainingForView ? (
+              /* FASE 2: Visualizar Ficha Selecionada */
+              <div>
+                {/* Botões de ação rápidos */}
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: '2rem' }}>
                   <ActionButton 
-                    $outline
-                    style={{ 
-                      width: '100%', 
-                      borderColor: selectedProfile.status === 'Inativo' ? '#10b981' : '#ef4444', 
-                      color: selectedProfile.status === 'Inativo' ? '#10b981' : '#ef4444' 
-                    }}
-                    onClick={async () => {
-                      const newStatus = selectedProfile.status === 'Inativo' ? 'Ativo' : 'Inativo';
-                      try {
-                        await updateDoc(doc(db, "users", selectedProfile.id), { status: newStatus });
-                        toast.success(newStatus === 'Ativo' ? 'Aluno ativado!' : 'Aluno desativado!');
-                        setSelectedProfile({ ...selectedProfile, status: newStatus });
-                        setStudents(prev => prev.map(st => st.id === selectedProfile.id ? { ...st, status: newStatus } : st));
-                      } catch (e) {
-                        toast.error('Erro ao atualizar status.');
-                      }
-                    }}
+                    style={{ flex: 1, gap: 8, minWidth: '140px' }} 
+                    onClick={() => handleDownloadPDF({ student: selectedProfile, name: selectedTrainingForView.name, exercises: selectedTrainingForView.exercises })}
                   >
-                    {selectedProfile.status === 'Inativo' ? 'Ativar Aluno' : 'Desativar Aluno'}
+                    <Download size={16} /> Baixar PDF
                   </ActionButton>
-                  {studentTraining && <ActionButton $outline style={{ width: '100%' }} onClick={() => handleEditTraining(studentTraining)}><Dumbbell size={16} /> Editar Treino</ActionButton>}
+                  
+                  {selectedProfile.phone && (
+                    <ActionButton 
+                      $outline 
+                      style={{ flex: 1, gap: 8, minWidth: '140px' }} 
+                      onClick={() => handleShareWhatsApp({ student: selectedProfile, name: selectedTrainingForView.name, exercises: selectedTrainingForView.exercises })}
+                    >
+                      <Send size={16} /> WhatsApp
+                    </ActionButton>
+                  )}
+
+                  <ActionButton 
+                    $outline 
+                    style={{ gap: 8 }} 
+                    onClick={() => handleEditTraining(selectedTrainingForView)}
+                  >
+                    <Edit2 size={16} /> Editar
+                  </ActionButton>
+
+                  <ActionButton 
+                    $outline 
+                    style={{ borderColor: '#cbd5e1', color: '#64748b' }} 
+                    onClick={() => setSelectedTrainingForView(null)}
+                  >
+                    Voltar
+                  </ActionButton>
+                </div>
+
+                {/* Lista de exercícios do treino selecionado */}
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: '1rem' }}>
+                  Exercícios ({selectedTrainingForView.exercises?.length || 0})
+                </h3>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '350px', overflowY: 'auto', paddingRight: 4 }}>
+                  {selectedTrainingForView.exercises?.map((ex, idx) => {
+                    const isMobility = ex.category?.toLowerCase().trim() === 'mobilidade e alongamento';
+                    return (
+                      <div 
+                        key={idx} 
+                        style={{ padding: 14, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12 }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0f172a' }}>
+                            {idx + 1}. {ex.title}
+                          </span>
+                          <span style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>
+                            {ex.category}
+                          </span>
+                        </div>
+                        
+                        {isMobility ? (
+                          <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 700 }}>
+                            🧘 Mobilidade e Alongamento Livre
+                          </span>
+                        ) : (
+                          <div style={{ display: 'flex', gap: 16, marginTop: 4 }}>
+                            {!ex.isDuration && (
+                              <>
+                                <span style={{ fontSize: '0.8rem', color: '#475569' }}>
+                                  Séries: <strong>{ex.series || '-'}</strong>
+                                </span>
+                                <span style={{ fontSize: '0.8rem', color: '#475569' }}>
+                                  Repetições: <strong>{ex.reps || '-'}</strong>
+                                </span>
+                              </>
+                            )}
+                            <span style={{ fontSize: '0.8rem', color: '#475569' }}>
+                              {ex.isDuration ? 'Duração' : 'Descanso'}: <strong>{ex.rest ? (ex.isDuration ? `${ex.rest} min` : `${ex.rest}s`) : '-'}</strong>
+                            </span>
+                          </div>
+                        )}
+
+                        {ex.substitutes?.length > 0 && (
+                          <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px solid #f1f5f9' }}>
+                            <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Substitutos:</span>
+                            <p style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', marginTop: 2 }}>
+                              {ex.substitutes.map(sub => sub.title).join(', ')}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-              <div style={{ flex: 1 }}>
-                <h3 style={{ marginBottom: '1.5rem' }}>Treino Atual</h3>
-                {studentTraining ? (
-                  <Card style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', background: '#fcfcfd' }}>
-                    <div>
-                      <h4 style={{ fontSize: '1.1rem', fontWeight: 600 }}>{studentTraining.name}</h4>
-                      <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4 }}>{studentTraining.exercises?.length} exercícios vinculados</p>
-                    </div>
-                    <ActionButton $outline style={{ padding: '10px', width: 'auto' }} onClick={() => handleEditTraining(studentTraining)}>
-                      <Edit2 size={18} />
-                    </ActionButton>
-                  </Card>
-                ) : <div style={{ height: 150, background: '#fcfcfd', borderRadius: 16, border: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>Sem treino ativo.</div>}
+            ) : (
+              /* FASE 1: Listagem de Fichas do Aluno */
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Fichas Cadastradas ({studentTrainings.length})
+                  </h3>
+                  <button
+                    onClick={handleCreateNewTrainingForStudent}
+                    style={{
+                      background: 'var(--accent)',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      transition: 'opacity 0.2s'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+                  >
+                    + Novo Treino
+                  </button>
+                </div>
 
-                <h3 style={{ margin: '2rem 0 1.5rem 0' }}>Histórico de Progresso</h3>
-                {studentLogs.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 250, overflowY: 'auto', paddingRight: 4 }}>
-                    {studentLogs.map(log => {
-                      const dateObj = log.completedAt?.toDate ? log.completedAt.toDate() : new Date(log.completedAt);
-                      const formattedDate = dateObj.toLocaleDateString('pt-BR', {
-                        day: '2-digit', month: '2-digit', year: 'numeric',
-                        hour: '2-digit', minute: '2-digit'
-                      });
+                {studentTrainings.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: '380px', overflowY: 'auto', paddingRight: 4 }}>
+                    {studentTrainings.map(t => {
+                      const dateObj = t.createdAt?.toDate ? t.createdAt.toDate() : (t.createdAt ? new Date(t.createdAt) : null);
+                      const formattedDate = dateObj ? dateObj.toLocaleDateString('pt-BR') : 'Sem data';
                       return (
-                        <div key={log.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12 }}>
+                        <div 
+                          key={t.id} 
+                          onClick={() => setSelectedTrainingForView(t)}
+                          style={{ 
+                            padding: '1.25rem', 
+                            background: '#ffffff', 
+                            border: '1px solid #e2e8f0', 
+                            borderRadius: '14px', 
+                            cursor: 'pointer',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#0f172a'; e.currentTarget.style.background = '#f8fafc'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#ffffff'; }}
+                        >
                           <div>
-                            <p style={{ fontWeight: 600, fontSize: '0.85rem' }}>{log.trainingName}</p>
-                            <p style={{ fontSize: '0.7rem', color: '#64748b', marginTop: 2 }}>{formattedDate}</p>
+                            <h4 style={{ fontWeight: 600, fontSize: '1rem', color: '#0f172a' }}>{t.name}</h4>
+                            <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4 }}>
+                              {t.exercises?.length || 0} exercícios • Cadastrado em {formattedDate}
+                            </p>
                           </div>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.7rem', fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                            <CheckCircle2 size={14} color="#10b981" /> Concluído
-                          </span>
+                          <ChevronRight size={18} color="#94a3b8" />
                         </div>
                       );
                     })}
                   </div>
                 ) : (
-                  <div style={{ padding: '2rem', background: '#fcfcfd', borderRadius: 16, border: '1px solid #f1f5f9', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>
-                    Nenhum treino finalizado ainda.
+                  <div style={{ padding: '3rem 2rem', background: '#f8fafc', borderRadius: 16, border: '1px dashed #cbd5e1', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                    <Dumbbell size={32} color="#94a3b8" />
+                    <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>
+                      Este aluno ainda não possui nenhuma ficha de treino ativa.
+                    </span>
+                    <button
+                      onClick={handleCreateNewTrainingForStudent}
+                      style={{
+                        background: 'transparent',
+                        border: '1px solid var(--accent)',
+                        color: 'var(--accent)',
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        marginTop: 4
+                      }}
+                    >
+                      Cadastrar Primeira Ficha
+                    </button>
                   </div>
                 )}
               </div>
-            </div>
+            )}
           </ModalContent>
         </Modal>
       )}
@@ -1056,6 +1245,45 @@ const AdminPanel = () => {
             <ActionButton style={{ width: '100%', padding: '16px' }} onClick={handleSaveExercise} disabled={uploading}>
               {uploading ? 'Enviando...' : (editingExercise ? 'Atualizar' : 'Criar')}
             </ActionButton>
+          </ModalContent>
+        </Modal>
+      )}
+      {savedTrainingInfo && (
+        <Modal>
+          <ModalContent style={{ maxWidth: '420px', padding: '3rem 2rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+              <div style={{ width: 64, height: 64, background: '#ecfdf5', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem' }}>
+                <CheckCircle2 size={36} color="#10b981" />
+              </div>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.5rem' }}>Treino Montado!</h2>
+              <p style={{ color: '#64748b', fontSize: '0.9rem', lineHeight: 1.5, marginBottom: '2rem' }}>
+                O treino <strong>{savedTrainingInfo.name}</strong> para o aluno <strong>{savedTrainingInfo.student.name}</strong> foi salvo e já está disponível no aplicativo!
+              </p>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+                <ActionButton style={{ width: '100%', gap: 8 }} onClick={() => handleDownloadPDF(savedTrainingInfo)}>
+                  <Download size={16} /> Baixar Ficha em PDF
+                </ActionButton>
+                
+                {savedTrainingInfo.student.phone ? (
+                  <ActionButton $outline style={{ width: '100%', gap: 8 }} onClick={() => handleShareWhatsApp(savedTrainingInfo)}>
+                    <Send size={16} /> Enviar via WhatsApp
+                  </ActionButton>
+                ) : (
+                  <p style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic', margin: '4px 0' }}>
+                    Aluno sem WhatsApp cadastrado.
+                  </p>
+                )}
+                
+                <ActionButton 
+                  $outline 
+                  style={{ width: '100%', borderColor: '#cbd5e1', color: '#64748b', marginTop: 8 }} 
+                  onClick={() => setSavedTrainingInfo(null)}
+                >
+                  Fechar
+                </ActionButton>
+              </div>
+            </div>
           </ModalContent>
         </Modal>
       )}

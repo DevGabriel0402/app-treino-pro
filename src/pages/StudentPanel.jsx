@@ -672,6 +672,7 @@ const StudentPanel = () => {
               setShowTrainingList={setShowTrainingList}
               db={db}
               user={user}
+              settings={settings}
               toast={toast}
             />
           } 
