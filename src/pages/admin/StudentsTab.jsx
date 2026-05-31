@@ -98,7 +98,8 @@ const StudentsTab = ({
   setEditingStudent,
   setStudentForm,
   setShowAddStudent,
-  setSelectedProfile
+  setSelectedProfile,
+  onToggleStatus
 }) => {
   const [search, setSearch] = useState('');
   const [visibleCpfs, setVisibleCpfs] = useState({});
@@ -182,12 +183,17 @@ const StudentsTab = ({
                   </td>
                   <td className="hide-mobile">{s.phone || '-'}</td>
                   <td>
-                    <span style={{ 
-                      padding: '4px 10px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 600,
-                      background: s.status === 'Inativo' ? '#fef2f2' : '#ecfdf5',
-                      color: s.status === 'Inativo' ? '#ef4444' : '#10b981',
-                      textTransform: 'uppercase', letterSpacing: 0.5
-                    }}>
+                    <span 
+                      onClick={() => onToggleStatus && onToggleStatus(s)}
+                      style={{ 
+                        padding: '4px 10px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 600,
+                        background: s.status === 'Inativo' ? '#fef2f2' : '#ecfdf5',
+                        color: s.status === 'Inativo' ? '#ef4444' : '#10b981',
+                        textTransform: 'uppercase', letterSpacing: 0.5,
+                        cursor: 'pointer'
+                      }}
+                      title="Clique para alterar o status do aluno"
+                    >
                       {s.status || 'Ativo'}
                     </span>
                   </td>

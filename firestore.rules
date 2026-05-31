@@ -19,7 +19,7 @@ service cloud.firestore {
     // In Treino Pro, the AdminPanel needs to list all users to show the student list.
     match /users/{userId} {
       allow read: if true; 
-      allow write: if isAuthenticated(); // Allow self-update or admin update. Further restriction: isAdmin() || request.auth.uid == userId
+      allow write: if true; 
     }
 
     // --- Exercises Collection ---

@@ -179,7 +179,7 @@ const AdminPanel = () => {
     }
   };
   
-  const [studentForm, setStudentForm] = useState({ name: '', email: '', cpf: '', phone: '', goal: 'Hipertrofia' });
+  const [studentForm, setStudentForm] = useState({ name: '', email: '', cpf: '', phone: '', goal: 'Hipertrofia', status: 'Ativo' });
   const [newExercise, setNewExercise] = useState({ title: '', category: 'Peitoral', description: '' });
   const [paymentForm, setPaymentForm] = useState({ studentId: '', amount: '', dueDate: '', status: 'pending', infinitePayHandle: '' });
   const [exerciseGif, setExerciseGif] = useState(null);
@@ -281,9 +281,21 @@ const AdminPanel = () => {
         }
       }).catch(err => console.error(err));
 
+      // Fetch student training logs
+      const qLogs = query(
+        collection(db, "trainingLogs"),
+        where("userId", "==", selectedProfile.id),
+        orderBy("completedAt", "desc"),
+        limit(20)
+      );
+      getDocs(qLogs).then(snap => {
+        setStudentLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }).catch(err => console.error(err));
+
       setSelectedTrainingForView(null);
     } else {
       setStudentTrainings([]);
+      setStudentLogs([]);
       setSelectedTrainingForView(null);
     }
   }, [selectedProfile]);
@@ -296,13 +308,90 @@ const AdminPanel = () => {
         await updateDoc(doc(db, "users", editingStudent.id), { ...formattedForm, updatedAt: new Date() });
         toast.success('Dados atualizados!');
       } else {
-        await addDoc(collection(db, "users"), { ...formattedForm, role: 'student', status: 'Ativo', createdAt: new Date() });
+        await addDoc(collection(db, "users"), { ...formattedForm, role: 'student', status: studentForm.status || 'Ativo', createdAt: new Date() });
         toast.success('Aluno cadastrado!');
       }
       setShowAddStudent(false);
       setEditingStudent(null);
+      setStudentForm({ name: '', email: '', cpf: '', phone: '', goal: 'Hipertrofia', status: 'Ativo' });
       fetchData();
     } catch (e) { toast.error('Erro ao salvar.'); }
+  };
+
+  const handleDeleteStudent = async (studentId) => {
+    const confirmDelete = window.confirm(
+      "Tem certeza que deseja excluir permanentemente este aluno?\n\n" +
+      "Esta ação apagará o cadastro do aluno, seus treinos vinculados e histórico de cobranças do banco de dados.\n\n" +
+      "Esta ação não pode ser desfeita!"
+    );
+    if (!confirmDelete) return;
+
+    const toastId = toast.loading("Excluindo aluno e dados vinculados...");
+    try {
+      await deleteDoc(doc(db, "users", studentId));
+
+      const trainingsSnap = await getDocs(query(collection(db, "trainings"), where("userId", "==", studentId)));
+      for (const tDoc of trainingsSnap.docs) {
+        await deleteDoc(doc(db, "trainings", tDoc.id));
+      }
+
+      const paymentsSnap = await getDocs(query(collection(db, "payments"), where("studentId", "==", studentId)));
+      for (const pDoc of paymentsSnap.docs) {
+        await deleteDoc(doc(db, "payments", pDoc.id));
+      }
+
+      const logsSnap = await getDocs(query(collection(db, "trainingLogs"), where("userId", "==", studentId)));
+      for (const lDoc of logsSnap.docs) {
+        await deleteDoc(doc(db, "trainingLogs", lDoc.id));
+      }
+
+      toast.success("Aluno e todos os seus dados foram excluídos com sucesso!", { id: toastId });
+      setSelectedProfile(null);
+      fetchData();
+    } catch (e) {
+      console.error(e);
+      toast.error("Ocorreu um erro ao tentar excluir o aluno.", { id: toastId });
+    }
+  };
+
+  const handleDeleteTraining = async (trainingId) => {
+    const confirmDelete = window.confirm(
+      "Tem certeza que deseja excluir esta ficha de treino?"
+    );
+    if (!confirmDelete) return;
+
+    try {
+      await deleteDoc(doc(db, "trainings", trainingId));
+      toast.success("Treino excluído com sucesso!");
+      setStudentTrainings(prev => prev.filter(t => t.id !== trainingId));
+      if (selectedTrainingForView && selectedTrainingForView.id === trainingId) {
+        setSelectedTrainingForView(null);
+      }
+      fetchData();
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao excluir o treino.");
+    }
+  };
+
+  const handleToggleStudentStatus = async (student) => {
+    const newStatus = student.status === 'Inativo' ? 'Ativo' : 'Inativo';
+    const confirmChange = window.confirm(
+      `Deseja alterar o status do aluno "${student.name}" para ${newStatus}?`
+    );
+    if (!confirmChange) return;
+
+    try {
+      await updateDoc(doc(db, "users", student.id), { status: newStatus });
+      toast.success(newStatus === 'Ativo' ? 'Aluno ativado!' : 'Aluno desativado!');
+      setStudents(prev => prev.map(st => st.id === student.id ? { ...st, status: newStatus } : st));
+      if (selectedProfile && selectedProfile.id === student.id) {
+        setSelectedProfile(prev => ({ ...prev, status: newStatus }));
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Erro ao atualizar status.');
+    }
   };
 
   const handleCreatePayment = async () => {
@@ -853,205 +942,339 @@ const AdminPanel = () => {
     <PanelContainer>
       {selectedProfile && (
         <Modal>
-          <ModalContent style={{ maxWidth: '650px', padding: '2.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
-              <div>
-                <h2 style={{ fontSize: '1.6rem', fontWeight: 700, color: '#0f172a' }}>
-                  {selectedTrainingForView ? `Detalhes: ${selectedTrainingForView.name}` : `Treinos de ${selectedProfile.name}`}
-                </h2>
-                <p style={{ color: '#64748b', fontSize: '0.85rem', marginTop: 4 }}>
-                  Objetivo: {selectedProfile.goal}
-                </p>
-              </div>
-              <X onClick={() => setSelectedProfile(null)} style={{ cursor: 'pointer', color: '#94a3b8' }} size={24} />
-            </div>
+          <ModalContent $wide style={{ maxWidth: '850px', padding: '2.5rem' }}>
+            <X 
+              onClick={() => setSelectedProfile(null)} 
+              style={{ position: 'absolute', top: 24, right: 24, cursor: 'pointer', color: '#94a3b8', zIndex: 10 }} 
+              size={24}
+            />
+            
+            <div style={{ display: 'flex', gap: '2.5rem', flexDirection: window.innerWidth < 768 ? 'column' : 'row' }}>
+              
+              {/* Coluna Esquerda: Dados Pessoais, Saúde e Ações */}
+              <div style={{ width: window.innerWidth < 768 ? '100%' : '260px', flexShrink: 0, borderRight: window.innerWidth < 768 ? 'none' : '1px solid #f1f5f9', paddingRight: window.innerWidth < 768 ? 0 : '1.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '1.5rem' }}>
+                  <div style={{ width: 80, height: 80, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', fontWeight: 700, color: 'var(--accent)', marginBottom: '1rem' }}>
+                    {selectedProfile.name.charAt(0).toUpperCase()}
+                  </div>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>{selectedProfile.name}</h2>
+                  <p style={{ color: '#64748b', fontSize: '0.85rem', marginTop: 4, textTransform: 'uppercase', fontWeight: 600 }}>{selectedProfile.goal}</p>
+                </div>
 
-            {selectedTrainingForView ? (
-              /* FASE 2: Visualizar Ficha Selecionada */
-              <div>
-                {/* Botões de ação rápidos */}
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: '2rem' }}>
+                {/* Biometria */}
+                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 12, border: '1px solid #e2e8f0', marginBottom: 12 }}>
+                  <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>Biometria</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginTop: 6 }}>
+                    <span style={{ color: '#64748b' }}>Peso:</span>
+                    <strong style={{ color: '#334155' }}>{selectedProfile.weight ? `${selectedProfile.weight} kg` : '-'}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginTop: 4 }}>
+                    <span style={{ color: '#64748b' }}>Altura:</span>
+                    <strong style={{ color: '#334155' }}>{selectedProfile.height ? `${selectedProfile.height} m` : '-'}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginTop: 4 }}>
+                    <span style={{ color: '#64748b' }}>IMC:</span>
+                    <strong style={{ color: selectedProfile.height && selectedProfile.weight ? '#10b981' : '#64748b' }}>
+                      {selectedProfile.height && selectedProfile.weight ? (Number(selectedProfile.weight) / (Number(selectedProfile.height) * Number(selectedProfile.height))).toFixed(1) : '-'}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Anamnese */}
+                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 12, border: '1px solid #e2e8f0', marginBottom: '1.5rem' }}>
+                  <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>Anamnese</span>
+                  <div style={{ 
+                    maxHeight: '120px', 
+                    overflowY: 'auto', 
+                    fontSize: '0.75rem', 
+                    color: '#475569', 
+                    marginTop: 6,
+                    lineHeight: 1.4,
+                    whiteSpace: 'pre-line',
+                    paddingRight: 4
+                  }}>
+                    {selectedProfile.anamnesis || 'Sem anamnese cadastrada pelo aluno.'}
+                  </div>
+                </div>
+
+                {/* Ações */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <ActionButton 
-                    style={{ flex: 1, gap: 8, minWidth: '140px' }} 
-                    onClick={() => handleDownloadPDF({ student: selectedProfile, name: selectedTrainingForView.name, exercises: selectedTrainingForView.exercises })}
+                    style={{ width: '100%', padding: '10px' }} 
+                    onClick={() => { setEditingStudent(selectedProfile); setStudentForm(selectedProfile); setShowAddStudent(true); }}
                   >
-                    <Download size={16} /> Baixar PDF
+                    Editar Aluno
                   </ActionButton>
                   
-                  {selectedProfile.phone && (
+                  <ActionButton 
+                    $outline 
+                    style={{ 
+                      width: '100%', 
+                      padding: '10px',
+                      borderColor: selectedProfile.status === 'Inativo' ? '#10b981' : '#ef4444',
+                      color: selectedProfile.status === 'Inativo' ? '#10b981' : '#ef4444'
+                    }}
+                    onClick={async () => {
+                      const newStatus = selectedProfile.status === 'Inativo' ? 'Ativo' : 'Inativo';
+                      try {
+                        await updateDoc(doc(db, "users", selectedProfile.id), { status: newStatus });
+                        toast.success(newStatus === 'Ativo' ? 'Aluno ativado!' : 'Aluno desativado!');
+                        setSelectedProfile({ ...selectedProfile, status: newStatus });
+                        setStudents(prev => prev.map(st => st.id === selectedProfile.id ? { ...st, status: newStatus } : st));
+                      } catch (e) {
+                        toast.error('Erro ao atualizar status.');
+                      }
+                    }}
+                  >
+                    {selectedProfile.status === 'Inativo' ? 'Ativar Aluno' : 'Desativar Aluno'}
+                  </ActionButton>
+
+                  {studentTrainings.length > 0 && (
                     <ActionButton 
                       $outline 
-                      style={{ flex: 1, gap: 8, minWidth: '140px' }} 
-                      onClick={() => handleShareWhatsApp({ student: selectedProfile, name: selectedTrainingForView.name, exercises: selectedTrainingForView.exercises })}
+                      style={{ width: '100%', padding: '10px' }} 
+                      onClick={() => handleEditTraining(studentTrainings[0])}
                     >
-                      <Send size={16} /> WhatsApp
+                      <Dumbbell size={14} /> Editar Treino
                     </ActionButton>
                   )}
 
                   <ActionButton 
                     $outline 
-                    style={{ gap: 8 }} 
-                    onClick={() => handleEditTraining(selectedTrainingForView)}
+                    style={{ width: '100%', padding: '10px', borderColor: '#ef4444', color: '#ef4444' }} 
+                    onClick={() => handleDeleteStudent(selectedProfile.id)}
                   >
-                    <Edit2 size={16} /> Editar
+                    Excluir Aluno
                   </ActionButton>
-
-                  <ActionButton 
-                    $outline 
-                    style={{ borderColor: '#cbd5e1', color: '#64748b' }} 
-                    onClick={() => setSelectedTrainingForView(null)}
-                  >
-                    Voltar
-                  </ActionButton>
-                </div>
-
-                {/* Lista de exercícios do treino selecionado */}
-                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: '1rem' }}>
-                  Exercícios ({selectedTrainingForView.exercises?.length || 0})
-                </h3>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '350px', overflowY: 'auto', paddingRight: 4 }}>
-                  {selectedTrainingForView.exercises?.map((ex, idx) => {
-                    const isMobility = ex.category?.toLowerCase().trim() === 'mobilidade e alongamento';
-                    return (
-                      <div 
-                        key={idx} 
-                        style={{ padding: 14, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12 }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                          <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0f172a' }}>
-                            {idx + 1}. {ex.title}
-                          </span>
-                          <span style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>
-                            {ex.category}
-                          </span>
-                        </div>
-                        
-                        {isMobility ? (
-                          <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 700 }}>
-                            🧘 Mobilidade e Alongamento Livre
-                          </span>
-                        ) : (
-                          <div style={{ display: 'flex', gap: 16, marginTop: 4 }}>
-                            {!ex.isDuration && (
-                              <>
-                                <span style={{ fontSize: '0.8rem', color: '#475569' }}>
-                                  Séries: <strong>{ex.series || '-'}</strong>
-                                </span>
-                                <span style={{ fontSize: '0.8rem', color: '#475569' }}>
-                                  Repetições: <strong>{ex.reps || '-'}</strong>
-                                </span>
-                              </>
-                            )}
-                            <span style={{ fontSize: '0.8rem', color: '#475569' }}>
-                              {ex.isDuration ? 'Duração' : 'Descanso'}: <strong>{ex.rest ? (ex.isDuration ? `${ex.rest} min` : `${ex.rest}s`) : '-'}</strong>
-                            </span>
-                          </div>
-                        )}
-
-                        {ex.substitutes?.length > 0 && (
-                          <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px solid #f1f5f9' }}>
-                            <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Substitutos:</span>
-                            <p style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', marginTop: 2 }}>
-                              {ex.substitutes.map(sub => sub.title).join(', ')}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
                 </div>
               </div>
-            ) : (
-              /* FASE 1: Listagem de Fichas do Aluno */
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    Fichas Cadastradas ({studentTrainings.length})
-                  </h3>
-                  <button
-                    onClick={handleCreateNewTrainingForStudent}
-                    style={{
-                      background: 'var(--accent)',
-                      color: '#fff',
-                      border: 'none',
-                      padding: '8px 14px',
-                      borderRadius: '8px',
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      transition: 'opacity 0.2s'
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-                  >
-                    + Novo Treino
-                  </button>
-                </div>
 
-                {studentTrainings.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: '380px', overflowY: 'auto', paddingRight: 4 }}>
-                    {studentTrainings.map(t => {
-                      const dateObj = t.createdAt?.toDate ? t.createdAt.toDate() : (t.createdAt ? new Date(t.createdAt) : null);
-                      const formattedDate = dateObj ? dateObj.toLocaleDateString('pt-BR') : 'Sem data';
-                      return (
-                        <div 
-                          key={t.id} 
-                          onClick={() => setSelectedTrainingForView(t)}
-                          style={{ 
-                            padding: '1.25rem', 
-                            background: '#ffffff', 
-                            border: '1px solid #e2e8f0', 
-                            borderRadius: '14px', 
-                            cursor: 'pointer',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            transition: 'all 0.2s'
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#0f172a'; e.currentTarget.style.background = '#f8fafc'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#ffffff'; }}
+              {/* Coluna Direita: Detalhes/Listagem de Fichas e Histórico */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1.5rem', minWidth: 0 }}>
+                {selectedTrainingForView ? (
+                  /* FASE 2: Visualizar Detalhes da Ficha Selecionada */
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                        Ficha: {selectedTrainingForView.name}
+                      </h3>
+                      <button 
+                        onClick={() => setSelectedTrainingForView(null)}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--accent)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}
+                      >
+                        Voltar para Fichas
+                      </button>
+                    </div>
+
+                    {/* Ações do treino */}
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: '1rem' }}>
+                      <ActionButton 
+                        style={{ flex: 1, padding: '8px 12px', fontSize: '0.75rem', gap: 6 }} 
+                        onClick={() => handleDownloadPDF({ student: selectedProfile, name: selectedTrainingForView.name, exercises: selectedTrainingForView.exercises })}
+                      >
+                        <Download size={14} /> PDF
+                      </ActionButton>
+                      
+                      {selectedProfile.phone && (
+                        <ActionButton 
+                          $outline 
+                          style={{ flex: 1, padding: '8px 12px', fontSize: '0.75rem', gap: 6 }} 
+                          onClick={() => handleShareWhatsApp({ student: selectedProfile, name: selectedTrainingForView.name, exercises: selectedTrainingForView.exercises })}
                         >
-                          <div>
-                            <h4 style={{ fontWeight: 600, fontSize: '1rem', color: '#0f172a' }}>{t.name}</h4>
-                            <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4 }}>
-                              {t.exercises?.length || 0} exercícios • Cadastrado em {formattedDate}
-                            </p>
+                          <Send size={14} /> WhatsApp
+                        </ActionButton>
+                      )}
+
+                      <ActionButton 
+                        $outline 
+                        style={{ padding: '8px 12px', fontSize: '0.75rem', gap: 6 }} 
+                        onClick={() => handleEditTraining(selectedTrainingForView)}
+                      >
+                        <Edit2 size={14} /> Editar
+                      </ActionButton>
+
+                      <ActionButton 
+                        $outline 
+                        style={{ padding: '8px 12px', fontSize: '0.75rem', borderColor: '#ef4444', color: '#ef4444' }} 
+                        onClick={() => handleDeleteTraining(selectedTrainingForView.id)}
+                      >
+                        Excluir
+                      </ActionButton>
+                    </div>
+
+                    <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: '0.5rem' }}>
+                      Exercícios ({selectedTrainingForView.exercises?.length || 0})
+                    </h4>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '200px', overflowY: 'auto', paddingRight: 4 }}>
+                      {selectedTrainingForView.exercises?.map((ex, idx) => {
+                        const isMobility = ex.category?.toLowerCase().trim() === 'mobilidade e alongamento';
+                        return (
+                          <div key={idx} style={{ padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.8rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontWeight: 700, fontSize: '0.8rem', color: '#0f172a' }}>{idx + 1}. {ex.title}</span>
+                              <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>{ex.category}</span>
+                            </div>
+                            {!isMobility && (
+                              <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: '0.75rem', color: '#64748b' }}>
+                                <span>Séries: <strong>{ex.series || '-'}</strong></span>
+                                <span>Reps: <strong>{ex.reps || '-'}</strong></span>
+                                <span>Descanso: <strong>{ex.rest ? `${ex.rest}s` : '-'}</strong></span>
+                              </div>
+                            )}
                           </div>
-                          <ChevronRight size={18} color="#94a3b8" />
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 ) : (
-                  <div style={{ padding: '3rem 2rem', background: '#f8fafc', borderRadius: 16, border: '1px dashed #cbd5e1', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                    <Dumbbell size={32} color="#94a3b8" />
-                    <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>
-                      Este aluno ainda não possui nenhuma ficha de treino ativa.
-                    </span>
-                    <button
-                      onClick={handleCreateNewTrainingForStudent}
-                      style={{
-                        background: 'transparent',
-                        border: '1px solid var(--accent)',
-                        color: 'var(--accent)',
-                        padding: '8px 16px',
-                        borderRadius: '8px',
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        marginTop: 4
-                      }}
-                    >
-                      Cadastrar Primeira Ficha
-                    </button>
+                  /* FASE 1: Listagem das Fichas do Aluno */
+                  <div>
+                    {/* Treino Atual */}
+                    <h3 style={{ marginBottom: '0.75rem', fontSize: '0.85rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5 }}>Treino Atual</h3>
+                    {studentTrainings.length > 0 ? (
+                      <Card style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.25rem', background: '#fcfcfd', border: '1px solid #e2e8f0', borderRadius: 12, marginBottom: '1.25rem' }}>
+                        <div>
+                          <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0f172a', margin: 0 }}>{studentTrainings[0].name}</h4>
+                          <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 4, margin: 0 }}>{studentTrainings[0].exercises?.length} exercícios vinculados</p>
+                        </div>
+                        <ActionButton $outline style={{ padding: '8px', width: 'auto' }} onClick={() => handleEditTraining(studentTrainings[0])}>
+                          <Edit2 size={16} />
+                        </ActionButton>
+                      </Card>
+                    ) : (
+                      <div style={{ height: 70, background: '#fcfcfd', borderRadius: 12, border: '1px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.8rem', marginBottom: '1.25rem' }}>
+                        Sem treino ativo.
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, margin: 0 }}>
+                        Fichas Cadastradas ({studentTrainings.length})
+                      </h3>
+                      <button
+                        onClick={handleCreateNewTrainingForStudent}
+                        style={{
+                          background: 'var(--accent)',
+                          color: '#fff',
+                          border: 'none',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4
+                        }}
+                      >
+                        + Novo Treino
+                      </button>
+                    </div>
+
+                    {studentTrainings.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '160px', overflowY: 'auto', paddingRight: 4, marginBottom: '1.25rem' }}>
+                        {studentTrainings.map(t => {
+                          const dateObj = t.createdAt?.toDate ? t.createdAt.toDate() : (t.createdAt ? new Date(t.createdAt) : null);
+                          const formattedDate = dateObj ? dateObj.toLocaleDateString('pt-BR') : 'Sem data';
+                          return (
+                            <div 
+                              key={t.id} 
+                              style={{ 
+                                padding: '8px 12px', 
+                                background: '#ffffff', 
+                                border: '1px solid #e2e8f0', 
+                                borderRadius: '10px', 
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                transition: 'all 0.2s'
+                              }}
+                            >
+                              <div style={{ cursor: 'pointer', flex: 1 }} onClick={() => setSelectedTrainingForView(t)}>
+                                <h4 style={{ fontWeight: 600, fontSize: '0.85rem', color: '#0f172a', margin: 0 }}>{t.name}</h4>
+                                <p style={{ fontSize: '0.7rem', color: '#64748b', marginTop: 2, margin: 0 }}>
+                                  {t.exercises?.length || 0} exercícios • {formattedDate}
+                                </p>
+                              </div>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <button 
+                                  onClick={() => handleEditTraining(t)}
+                                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', padding: 4 }}
+                                  title="Editar"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteTraining(t.id)}
+                                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4 }}
+                                  title="Excluir"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: 12, border: '1px dashed #cbd5e1', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginBottom: '1.25rem' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>
+                          Nenhuma ficha de treino ativa.
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
+
+                {/* Histórico de Progresso Compacto */}
+                <div>
+                  <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: '0.75rem', marginTop: 0 }}>
+                    Histórico de Progresso
+                  </h3>
+                  
+                  {studentLogs.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '130px', overflowY: 'auto', paddingRight: 4 }}>
+                      {studentLogs.map(log => {
+                        const dateObj = log.completedAt?.toDate ? log.completedAt.toDate() : new Date(log.completedAt);
+                        const formattedDate = dateObj.toLocaleDateString('pt-BR', {
+                          day: '2-digit', month: '2-digit', year: 'numeric',
+                          hour: '2-digit', minute: '2-digit'
+                        });
+                        return (
+                          <div 
+                            key={log.id} 
+                            style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'space-between', 
+                              padding: '8px 12px', 
+                              background: '#f8fafc', 
+                              border: '1px solid #e2e8f0', 
+                              borderRadius: 8,
+                              fontSize: '0.8rem'
+                            }}
+                          >
+                            <div>
+                              <p style={{ fontWeight: 600, fontSize: '0.8rem', color: '#334155', margin: 0 }}>{log.trainingName}</p>
+                              <p style={{ fontSize: '0.65rem', color: '#94a3b8', margin: 0, marginTop: 2 }}>{formattedDate}</p>
+                            </div>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.65rem', fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                              <CheckCircle2 size={12} color="#10b981" /> Concluído
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: 12, border: '1px solid #f1f5f9', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>
+                      Nenhum treino concluído ainda.
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
+
+            </div>
           </ModalContent>
         </Modal>
       )}
@@ -1108,6 +1331,7 @@ const AdminPanel = () => {
               setStudentForm={setStudentForm}
               setShowAddStudent={setShowAddStudent}
               setSelectedProfile={setSelectedProfile}
+              onToggleStatus={handleToggleStudentStatus}
             />
           } 
         />
@@ -1192,7 +1416,7 @@ const AdminPanel = () => {
           <ModalContent>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
               <h2>{editingStudent ? 'Editar' : 'Novo Aluno'}</h2>
-              <X onClick={() => { setShowAddStudent(false); setEditingStudent(null); }} cursor="pointer" color="#94a3b8" />
+              <X onClick={() => { setShowAddStudent(false); setEditingStudent(null); setStudentForm({ name: '', email: '', cpf: '', phone: '', goal: 'Hipertrofia', status: 'Ativo' }); }} cursor="pointer" color="#94a3b8" />
             </div>
             <InputGroup>
               <label>Nome Completo</label>
@@ -1213,6 +1437,45 @@ const AdminPanel = () => {
                 <option>Emagrecimento</option>
                 <option>Definição</option>
               </select>
+            </InputGroup>
+            <InputGroup>
+              <label>Status</label>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setStudentForm({...studentForm, status: 'Ativo'})}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    background: studentForm.status === 'Inativo' ? '#f1f5f9' : '#10b981',
+                    color: studentForm.status === 'Inativo' ? '#64748b' : '#fff',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Ativo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStudentForm({...studentForm, status: 'Inativo'})}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    background: studentForm.status === 'Inativo' ? '#ef4444' : '#f1f5f9',
+                    color: studentForm.status === 'Inativo' ? '#fff' : '#64748b',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Inativo
+                </button>
+              </div>
             </InputGroup>
             <ActionButton style={{ width: '100%', padding: '16px' }} onClick={handleCreateStudent}>
               {editingStudent ? 'Atualizar' : 'Cadastrar'}
